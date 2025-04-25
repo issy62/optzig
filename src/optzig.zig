@@ -39,6 +39,7 @@ pub const ArgTypes = union(enum) {
     }
 };
 
+// TODO: Put this to use or remove it!
 pub const ArgTypeValidity = enum {
     Invalid,
     Valid,
@@ -50,10 +51,12 @@ pub const Arg = struct {
     description: []const u8,
     value: ArgTypes,
 
+    // TODO: Remove the dependency of the ArenaAllocator and let the user choose the allocator.
     pub fn make_arg(arena: *std.heap.ArenaAllocator, name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
         if (name.len == 0) return Error.ArgDefinitionEmptyName;
         if (desc.len == 0) return Error.ArgDefinitionEmptyDesc;
 
+        // TODO: Remove the dash addition. Expect them as input but remove them before comp parse time.
         const temp_name = try std.mem.concat(arena.allocator(), u8, &[_][]const u8{ "--", name });
 
         return .{
@@ -64,7 +67,9 @@ pub const Arg = struct {
     }
 };
 
-inline fn parseToBool(str: []const u8) !bool {
+fn parseToBool(str: []const u8) Error!bool {
+    if (std.mem.eql(u8, str, "True")) return true;
+    if (std.mem.eql(u8, str, "False")) return false;
     if (std.mem.eql(u8, str, "true")) return true;
     if (std.mem.eql(u8, str, "false")) return false;
     if (std.mem.eql(u8, str, "1")) return true;
@@ -193,6 +198,7 @@ pub const Args = struct {
         }
     }
 
+    // TODO: A MockArgIterator support do the check at comptime.
     pub fn parse(self: *Self, argv: *std.process.ArgIterator) !void {
         _ = argv.skip(); // skip the  executable
         var active_key: []const u8 = "";
@@ -238,8 +244,96 @@ pub const Args = struct {
     }
 };
 
-test "Arg Init Test" {
-    var my_arg = try Arg(bool).make_arg(testing.allocator, "verbose", "Verbose", false);
-    defer my_arg.freeArg(testing.allocator);
+// ========================================
+// =               TESTING                =
+// ========================================
+
+// TODO: The parse function doesn't accept this yet but I will implement this later.
+const MockArgIterator = struct {
+    args: []const []const u8,
+    index: usize = 0,
+
+    pub fn init(args_slice: []const []const u8) MockArgIterator {
+        return .{ .args = args_slice };
+    }
+
+    pub fn skip(self: *MockArgIterator) ?[]const u8 {
+        if (self.index < self.args.len) {
+            const skipped = self.args[self.index];
+            self.index += 1;
+            return skipped;
+        }
+        return null;
+    }
+
+    pub fn next(self: *MockArgIterator) ?[]const u8 {
+        if (self.index < self.args.len) {
+            const next_arg = self.args[self.index];
+            self.index += 1;
+            return next_arg;
+        }
+        return null;
+    }
+};
+
+test "Optzig.Arg make_arg validation" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    const test_object = try Arg.make_arg(&arena, "valid", "description", .{ .Boolean = false });
+
+    try testing.expectEqualStrings("--valid", test_object.name);
+    try testing.expectEqualStrings("description", test_object.description);
+    const data = .{ .Boolean = false };
+    try testing.expectEqual(data.Boolean, test_object.value.Boolean);
+}
+
+test "Optzig.Arg make_arg empty name error check" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    const test_object = Arg.make_arg(&allocator, "", "description", .{ .Boolean = false });
+
+    try testing.expectError(Error.ArgDefinitionEmptyName, test_object);
+}
+
+test "Optzig.Arg.make_arg empty description error check" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    arena.deinit();
+
+    const test_object = Arg.make_arg(&arena, "flag", "", .{ .Boolean = false });
+
+    try testing.expectError(Error.ArgDefinitionEmptyDesc, test_object);
+}
+
+test "Optzig parseToBool" {
+    try testing.expectEqual(parseToBool("True"), true);
+    try testing.expectEqual(parseToBool("true"), true);
+    try testing.expectEqual(parseToBool("False"), false);
+    try testing.expectEqual(parseToBool("false"), false);
+    try testing.expectEqual(parseToBool("1"), true);
+    try testing.expectEqual(parseToBool("0"), false);
+}
+
+test "Optzig parseToBool error check" {
+    try testing.expectError(Error.BadBooleanInputValue, parseToBool("z3R0"));
+}
+
+test "Optzig.Args validation" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    var args = Args.init(&allocator);
+
+    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 8080 });
+
+    try testing.expectEqualStrings("--verbose", args.items.get("verbose").?.name);
+    try testing.expectEqualStrings("Set the application verbosity levels.", args.items.get("verbose").?.description);
+    try testing.expectEqual(false, args.items.get("verbose").?.value.Boolean);
+
+    try testing.expectEqualStrings("--port", args.items.get("port").?.name);
+    try testing.expectEqualStrings("Set the server binding port.", args.items.get("port").?.description);
+    try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
 }
 
