@@ -24,6 +24,8 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    lib_unit_tests.root_module.addImport("optzig", module);
+
     const exe = b.addExecutable(.{
         .name = "runner",
         .root_source_file = b.path("src/runner.zig"),
