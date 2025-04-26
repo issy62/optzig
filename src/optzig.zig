@@ -1,6 +1,7 @@
 const std = @import("std");
 const testing = std.testing;
 
+// TODO: Split this into multiple errors
 pub const Error = error{
     ArgDefinitionEmptyName,
     ArgDefinitionEmptyDesc,
@@ -199,47 +200,52 @@ pub const Args = struct {
     }
 
     // TODO: A MockArgIterator support do the check at comptime.
-    pub fn parse(self: *Self, argv: *std.process.ArgIterator) !void {
-        _ = argv.skip(); // skip the  executable
-        var active_key: []const u8 = "";
+    pub fn parse(self: *Self, comptime ItType: type, argv: *ItType) !void {
+        switch (ItType) {
+            std.process.ArgIterator, MockArgIterator => {
+                _ = argv.skip(); // skip the  executable
+                var active_key: []const u8 = "";
 
-        while (argv.next()) |in| {
-            if (std.mem.startsWith(u8, in, "--")) {
-                const tmp = std.mem.trimLeft(u8, in, "--");
-                if (self.items.contains(tmp)) {
-                    active_key = tmp;
-                } else {
-                    std.log.debug("Argument was not defined\n", .{});
-                    return Error.ErroneusInput;
-                }
-            } else if (std.mem.startsWith(u8, in, "-")) {
-                const tmp = std.mem.trimLeft(u8, in, "-");
-                if (self.items.contains(tmp)) {
-                    active_key = tmp;
-                } else {
-                    std.log.debug("Argument was not defined\n", .{});
-                    return Error.ErroneusInput;
-                }
-            } else {
-                if (in.len == 0) {
-                    std.log.debug("Input: {s}", .{in});
-                    return Error.ErroneusInput;
-                } else {
-                    const entry = self.items.get(active_key) orelse return Error.ErroneusInput;
+                while (argv.next()) |in| {
+                    if (std.mem.startsWith(u8, in, "--")) {
+                        const tmp = std.mem.trimLeft(u8, in, "--");
+                        if (self.items.contains(tmp)) {
+                            active_key = tmp;
+                        } else {
+                            std.log.debug("Argument was not defined\n", .{});
+                            return Error.ErroneusInput;
+                        }
+                    } else if (std.mem.startsWith(u8, in, "-")) {
+                        const tmp = std.mem.trimLeft(u8, in, "-");
+                        if (self.items.contains(tmp)) {
+                            active_key = tmp;
+                        } else {
+                            std.log.debug("Argument was not defined\n", .{});
+                            return Error.ErroneusInput;
+                        }
+                    } else {
+                        if (in.len == 0) {
+                            std.log.debug("Input: {s}", .{in});
+                            return Error.ErroneusInput;
+                        } else {
+                            const entry = self.items.get(active_key) orelse return Error.ErroneusInput;
 
-                    switch (entry.value) {
-                        .Boolean => {
-                            try parseBoolean(self, in, active_key);
-                        },
-                        .Int32, .Int64, .Int128, .UInt32, .UInt64, .UInt128, .Float32, .Float64, .Float128 => {
-                            try parseNumeric(self, in, active_key);
-                        },
-                        .String => {
-                            try parseString(self, in, active_key);
-                        },
+                            switch (entry.value) {
+                                .Boolean => {
+                                    try parseBoolean(self, in, active_key);
+                                },
+                                .Int32, .Int64, .Int128, .UInt32, .UInt64, .UInt128, .Float32, .Float64, .Float128 => {
+                                    try parseNumeric(self, in, active_key);
+                                },
+                                .String => {
+                                    try parseString(self, in, active_key);
+                                },
+                            }
+                        }
                     }
                 }
-            }
+            },
+            else => @compileError("Only use ArgIterator (Release) and MockArgIterator (Testing)."),
         }
     }
 };
@@ -248,7 +254,6 @@ pub const Args = struct {
 // =               TESTING                =
 // ========================================
 
-// TODO: The parse function doesn't accept this yet but I will implement this later.
 const MockArgIterator = struct {
     args: []const []const u8,
     index: usize = 0,
@@ -334,6 +339,40 @@ test "Optzig.Args validation" {
 
     try testing.expectEqualStrings("--port", args.items.get("port").?.name);
     try testing.expectEqualStrings("Set the server binding port.", args.items.get("port").?.description);
+    try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
+}
+
+// TODO: Spread this test out to test all error avenues
+test "Optzig.Args parse ErroneusInput" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    var args = Args.init(&allocator);
+
+    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbosity", "false" });
+
+    const parse_res = args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectError(Error.ErroneusInput, parse_res);
+}
+
+test "Optzig.Args parse validation" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    var args = Args.init(&allocator);
+
+    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose", "false", "--port", "8080" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqual(false, args.items.get("verbose").?.value.Boolean);
     try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
 }
 
