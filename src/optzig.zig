@@ -7,7 +7,7 @@ pub const ArgDefinitionError = error{
 };
 
 pub const ArgParserError = error{
-    ErroneusInput,
+    ErroneousInput,
     ArgumentNotDefined,
     BadBooleanInputValue,
 };
@@ -42,12 +42,6 @@ pub const ArgTypes = union(enum) {
     }
 };
 
-// TODO: Put this to use or remove it!
-pub const ArgTypeValidity = enum {
-    Invalid,
-    Valid,
-};
-
 pub const Arg = struct {
     const Self = @This();
     name: []const u8,
@@ -70,10 +64,14 @@ pub const Arg = struct {
 };
 
 fn parseToBool(str: []const u8) ArgParserError!bool {
-    if (std.mem.eql(u8, str, "True")) return true;
-    if (std.mem.eql(u8, str, "False")) return false;
-    if (std.mem.eql(u8, str, "true")) return true;
-    if (std.mem.eql(u8, str, "false")) return false;
+    if (std.mem.eql(u8, str, "TRUE") or
+        std.mem.eql(u8, str, "True") or
+        std.mem.eql(u8, str, "true")) return true;
+
+    if (std.mem.eql(u8, str, "FALSE") or
+        std.mem.eql(u8, str, "False") or
+        std.mem.eql(u8, str, "false")) return false;
+
     if (std.mem.eql(u8, str, "1")) return true;
     if (std.mem.eql(u8, str, "0")) return false;
 
@@ -99,13 +97,9 @@ pub const Args = struct {
 
     inline fn parseBoolean(self: *Self, src: []const u8, active_key: []const u8) !void {
         if (self.items.getPtr(active_key)) |entry| {
-            if (std.mem.eql(u8, src, "")) {
-                entry.value = ArgTypes{ .Boolean = true };
-            } else {
-                entry.value = ArgTypes{ .Boolean = parseToBool(src) catch |err| {
-                    return err;
-                } };
-            }
+            entry.value = ArgTypes{ .Boolean = parseToBool(src) catch |err| {
+                return err;
+            } };
         }
     }
 
@@ -194,6 +188,15 @@ pub const Args = struct {
                     if (std.mem.startsWith(u8, in, "--")) {
                         const tmp = std.mem.trimLeft(u8, in, "--");
                         if (self.items.contains(tmp)) {
+                            // Boolean togglable flag only works with double dash
+                            const entry = self.items.get(tmp) orelse return ArgParserError.ErroneousInput;
+
+                            if (std.meta.activeTag(entry.value) == .Boolean) {
+                                if (self.items.getPtr(tmp)) |ptr| {
+                                    ptr.value.Boolean = !entry.value.Boolean;
+                                }
+                            }
+
                             active_key = tmp;
                         } else {
                             return ArgParserError.ArgumentNotDefined;
@@ -207,21 +210,22 @@ pub const Args = struct {
                         if (self.items.contains(tmp)) {
                             active_key = tmp;
                         } else if (is_num_val and active_key.len > 0) {
-                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneusInput;
+                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneousInput;
                             switch (entry.value) {
                                 .Int32, .Int64, .Int128, .Float32, .Float64, .Float128 => {
                                     try parseNumeric(self, in, active_key);
                                 },
-                                else => return ArgParserError.ErroneusInput,
+                                else => return ArgParserError.ErroneousInput,
                             }
                         } else {
                             return ArgParserError.ArgumentNotDefined;
                         }
                     } else {
                         if (in.len == 0) {
-                            return ArgParserError.ErroneusInput;
+                            // Handle empty string value
+                            return ArgParserError.ErroneousInput;
                         } else {
-                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneusInput;
+                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneousInput;
 
                             switch (entry.value) {
                                 .Boolean => {
@@ -399,5 +403,20 @@ test "Optzig.Args parse single dash and negative number differentiation" {
 
     try testing.expectEqual(-0.35, args.items.get("search-radius").?.value.Float32);
     try testing.expectEqual(-125, args.items.get("scalar").?.value.Int32);
+}
+
+test "Optzig.Args parse togglable boolean" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var args = Args.init(arena.allocator());
+
+    try args.put("verbose", "Toggle output verbosity.", ArgTypes{ .Boolean = false });
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqual(true, args.items.get("verbose").?.value.Boolean);
 }
 
