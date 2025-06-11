@@ -21,8 +21,8 @@ pub fn main() !void {
     var ag = opt.Args.init(arena.allocator());
 
     try ag.put("verbose", "verbosity level", opt.ArgTypes{ .Boolean = false });
-    try ag.put("port", "binding port", opt.ArgTypes{ .Float32 = undefined });
-    try ag.put("to", "outbound phone number", opt.ArgTypes{ .String = undefined });
+    try ag.put("port", "binding port", opt.ArgTypes{ .Float32 = 0.0 });
+    try ag.put("to", "outbound phone number", opt.ArgTypes{ .String = "" });
 
     var arg_iputs = try std.process.argsWithAllocator(arena.allocator());
 
