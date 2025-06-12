@@ -107,71 +107,55 @@ pub const Args = struct {
     }
 
     inline fn parseNumeric(self: *Self, src: []const u8, active_key: []const u8) !void {
-        switch (self.items.get(active_key).?.value) {
-            .Int32 => {
-                if (self.items.getPtr(active_key)) |entry| {
+        if (self.items.getPtr(active_key)) |entry| {
+            switch (entry.value) {
+                .Int32 => {
                     entry.value = ArgTypes{ .Int32 = std.fmt.parseInt(i32, src, 10) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .Int64 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .Int64 => {
                     entry.value = ArgTypes{ .Int64 = std.fmt.parseInt(i64, src, 10) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .Int128 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .Int128 => {
                     entry.value = ArgTypes{ .Int128 = std.fmt.parseInt(i128, src, 10) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .UInt32 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .UInt32 => {
                     entry.value = ArgTypes{ .UInt32 = std.fmt.parseInt(u32, src, 10) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .UInt64 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .UInt64 => {
                     entry.value = ArgTypes{ .UInt64 = std.fmt.parseInt(u64, src, 10) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .UInt128 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .UInt128 => {
                     entry.value = ArgTypes{ .UInt128 = std.fmt.parseInt(u128, src, 10) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .Float32 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .Float32 => {
                     entry.value = ArgTypes{ .Float32 = std.fmt.parseFloat(f32, src) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .Float64 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .Float64 => {
                     entry.value = ArgTypes{ .Float64 = std.fmt.parseFloat(f64, src) catch |err| {
                         return err;
                     } };
-                }
-            },
-            .Float128 => {
-                if (self.items.getPtr(active_key)) |entry| {
+                },
+                .Float128 => {
                     entry.value = ArgTypes{ .Float128 = std.fmt.parseFloat(f128, src) catch |err| {
                         return err;
                     } };
-                }
-            },
-            else => {},
+                },
+                else => {},
+            }
         }
     }
 
