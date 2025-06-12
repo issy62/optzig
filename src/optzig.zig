@@ -48,15 +48,12 @@ pub const Arg = struct {
     description: []const u8,
     value: ArgTypes,
 
-    pub fn make_arg(allocator: std.mem.Allocator, name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
+    pub fn make_arg(name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
         if (name.len == 0) return ArgDefinitionError.EmptyName;
         if (desc.len == 0) return ArgDefinitionError.EmptyDesc;
 
-        // TODO: Remove the dash addition. Expect them as input but remove them before comp parse time.
-        const temp_name = try std.mem.concat(allocator, u8, &[_][]const u8{ "--", name });
-
         return .{
-            .name = temp_name,
+            .name = name,
             .description = desc,
             .value = value_type,
         };
@@ -91,7 +88,7 @@ pub const Args = struct {
     }
 
     pub fn put(self: *Self, name: []const u8, desc: []const u8, value: ArgTypes) !void {
-        const arg = try Arg.make_arg(self.allocator, name, desc, value);
+        const arg = try Arg.make_arg(name, desc, value);
         try self.items.put(name, arg);
     }
 
@@ -279,31 +276,22 @@ const MockArgIterator = struct {
 };
 
 test "Optzig.Arg make_arg validation" {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
+    const test_object = try Arg.make_arg("valid", "description", .{ .Boolean = false });
 
-    const test_object = try Arg.make_arg(arena.allocator(), "valid", "description", .{ .Boolean = false });
-
-    try testing.expectEqualStrings("--valid", test_object.name);
+    try testing.expectEqualStrings("valid", test_object.name);
     try testing.expectEqualStrings("description", test_object.description);
     const data = .{ .Boolean = false };
     try testing.expectEqual(data.Boolean, test_object.value.Boolean);
 }
 
 test "Optzig.Arg make_arg empty name error check" {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    defer arena.deinit();
-
-    const test_object = Arg.make_arg(arena.allocator(), "", "description", .{ .Boolean = false });
+    const test_object = Arg.make_arg("", "description", .{ .Boolean = false });
 
     try testing.expectError(ArgDefinitionError.EmptyName, test_object);
 }
 
 test "Optzig.Arg.make_arg empty description error check" {
-    var arena = std.heap.ArenaAllocator.init(testing.allocator);
-    arena.deinit();
-
-    const test_object = Arg.make_arg(arena.allocator(), "flag", "", .{ .Boolean = false });
+    const test_object = Arg.make_arg("flag", "", .{ .Boolean = false });
 
     try testing.expectError(ArgDefinitionError.EmptyDesc, test_object);
 }
@@ -330,11 +318,11 @@ test "Optzig.Args validation" {
     try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
     try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 8080 });
 
-    try testing.expectEqualStrings("--verbose", args.items.get("verbose").?.name);
+    try testing.expectEqualStrings("verbose", args.items.get("verbose").?.name);
     try testing.expectEqualStrings("Set the application verbosity levels.", args.items.get("verbose").?.description);
     try testing.expectEqual(false, args.items.get("verbose").?.value.Boolean);
 
-    try testing.expectEqualStrings("--port", args.items.get("port").?.name);
+    try testing.expectEqualStrings("port", args.items.get("port").?.name);
     try testing.expectEqualStrings("Set the server binding port.", args.items.get("port").?.description);
     try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
 }
