@@ -61,16 +61,19 @@ pub const Arg = struct {
 };
 
 fn parseToBool(str: []const u8) ArgParserError!bool {
-    if (std.mem.eql(u8, str, "TRUE") or
-        std.mem.eql(u8, str, "True") or
-        std.mem.eql(u8, str, "true")) return true;
+    var buffer: [5]u8 = undefined;
+    const sanitized_str = std.ascii.lowerString(&buffer, std.mem.trim(u8, str, &std.ascii.whitespace));
 
-    if (std.mem.eql(u8, str, "FALSE") or
-        std.mem.eql(u8, str, "False") or
-        std.mem.eql(u8, str, "false")) return false;
+    if (sanitized_str.len == 1) {
+        return switch (sanitized_str[0]) {
+            '0' => false,
+            '1' => true,
+            else => return ArgParserError.ErroneousInput,
+        };
+    }
 
-    if (std.mem.eql(u8, str, "1")) return true;
-    if (std.mem.eql(u8, str, "0")) return false;
+    if (std.mem.eql(u8, sanitized_str, "true")) return true;
+    if (std.mem.eql(u8, sanitized_str, "false")) return false;
 
     return ArgParserError.BadBooleanInputValue;
 }
