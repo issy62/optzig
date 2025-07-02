@@ -1,0 +1,49 @@
+# <type>(<scope>): <subject>
+#
+# <body>(optional)
+#
+# <footer>(optional)
+
+# Type should be one of the following:
+# * feat: A new feature
+# * fix: A bug fix
+# * docs: Documentation only changes
+# * style: Changes that do not affect the meaning of the code
+# * refactor: A code change that neither fixes a bug nor adds a feature
+# * perf: A code change that improves performance
+# * test: Adding missing or correcting existing tests
+# * build: Changes that affect the build system or external dependencies
+# * ci: Changes to our CI configuration files and scripts
+# * chore: Other changes that don't modify src or test files
+# * revert: Reverts a previous commit
+
+# Subject line rules:
+# * Use imperative mood ("Add feature" not "Added feature")
+# * Don't capitalize first letter
+# * No period at the end
+# * Limit to 50 characters
+
+# Body rules:
+# * Wrap at 72 characters
+# * Use imperative mood
+# * Explain what and why, not how
+# * Separate subject from body with blank line
+
+# Footer rules:
+# * Include BREAKING CHANGE: for breaking changes
+# * Reference issues: Closes #123, Fixes #456
+# * Co-authored-by: for multiple authors
+
+# Example:
+# feat(parser): add support for negative numbers
+#
+# Extend parseNumeric function to handle negative integers and floats.
+# Previously the parser would fail on values starting with '-' or '.'.
+#
+# - Add validation for negative number patterns
+# - Support decimal numbers starting with '.'
+# - Include comprehensive test coverage
+#
+# Fixes #42
+# BREAKING CHANGE: parseNumeric now returns different error types
+
