@@ -7,24 +7,13 @@ pub fn build(b: *std.Build) void {
 
     const module = b.addModule("optzig", .{ .root_source_file = b.path("src/optzig.zig") });
 
-    const lib = b.addStaticLibrary(.{
-        .name = "optzig",
+    const tests = b.addTest(.{
         .root_source_file = b.path("src/optzig.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    lib.root_module.addImport("optzig", module);
-
-    b.installArtifact(lib);
-
-    const lib_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/optzig.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    lib_unit_tests.root_module.addImport("optzig", module);
+    tests.root_module.addImport("optzig", module);
 
     const exe = b.addExecutable(.{
         .name = "runner",
@@ -32,12 +21,16 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
     b.installArtifact(exe);
 
     exe.root_module.addImport("optzig", module);
 
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
+
+    const run_tests = b.addRunArtifact(tests);
+    run_tests.has_side_effects = true;
 
     if (b.args) |args| {
         run_cmd.addArgs(args);
@@ -46,10 +39,7 @@ pub fn build(b: *std.Build) void {
     const run_step = b.step("run", "Run the app");
     run_step.dependOn(&run_cmd.step);
 
-    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
-    run_lib_unit_tests.has_side_effects = true;
-
     const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_lib_unit_tests.step);
+    test_step.dependOn(&run_tests.step);
 }
 
