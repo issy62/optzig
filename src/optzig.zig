@@ -4,12 +4,14 @@ const testing = std.testing;
 pub const ArgDefinitionError = error{
     EmptyName,
     EmptyDesc,
+    Duplicate,
 };
 
 pub const ArgParserError = error{
     ErroneousInput,
     ArgumentNotDefined,
     BadBooleanInputValue,
+    RequiredArgument,
 };
 
 pub const ArgTypes = union(enum) {
@@ -46,15 +48,19 @@ pub const Arg = struct {
     const Self = @This();
     name: []const u8,
     description: []const u8,
+    required: bool,
+    supplied: bool,
     value: ArgTypes,
 
-    pub fn make_arg(name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
+    pub fn make_arg(name: []const u8, desc: []const u8, required: bool, value_type: ArgTypes) !Self {
         if (name.len == 0) return ArgDefinitionError.EmptyName;
         if (desc.len == 0) return ArgDefinitionError.EmptyDesc;
 
         return .{
             .name = name,
             .description = desc,
+            .required = required,
+            .supplied = false,
             .value = value_type,
         };
     }
@@ -90,85 +96,133 @@ pub const Args = struct {
         };
     }
 
-    pub fn add(self: *Self, name: []const u8, desc: []const u8, value: ArgTypes) !void {
+    pub fn add(self: *Self, name: []const u8, desc: []const u8, required: bool, value: ArgTypes) !void {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, value);
+        arg.* = try Arg.make_arg(name, desc, required, value);
         try self.args.put(name, arg);
     }
 
-    pub fn boolean(self: *Self, name: []const u8, desc: []const u8, value: bool) !*bool {
+    pub fn boolean(self: *Self, name: []const u8, desc: []const u8, required: bool, value: bool) !*bool {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Boolean = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Boolean = value });
         try self.args.put(name, arg);
         return &arg.value.Boolean;
     }
 
-    pub fn int32(self: *Self, name: []const u8, desc: []const u8, value: i32) !*i32 {
+    pub fn int32(self: *Self, name: []const u8, desc: []const u8, required: bool, value: i32) !*i32 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Int32 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Int32 = value });
         try self.args.put(name, arg);
         return &arg.value.Int32;
     }
 
-    pub fn int64(self: *Self, name: []const u8, desc: []const u8, value: i64) !*i64 {
+    pub fn int64(self: *Self, name: []const u8, desc: []const u8, required: bool, value: i64) !*i64 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Int64 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Int64 = value });
         try self.args.put(name, arg);
         return &arg.value.Int64;
     }
 
-    pub fn int128(self: *Self, name: []const u8, desc: []const u8, value: i128) !*i128 {
+    pub fn int128(self: *Self, name: []const u8, desc: []const u8, required: bool, value: i128) !*i128 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Int128 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Int128 = value });
         try self.args.put(name, arg);
         return &arg.value.Int128;
     }
 
-    pub fn uint32(self: *Self, name: []const u8, desc: []const u8, value: u32) !*u32 {
+    pub fn uint32(self: *Self, name: []const u8, desc: []const u8, required: bool, value: u32) !*u32 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .UInt32 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .UInt32 = value });
         try self.args.put(name, arg);
         return &arg.value.UInt32;
     }
 
-    pub fn uint64(self: *Self, name: []const u8, desc: []const u8, value: u64) !*u64 {
+    pub fn uint64(self: *Self, name: []const u8, desc: []const u8, required: bool, value: u64) !*u64 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .UInt64 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .UInt64 = value });
         try self.args.put(name, arg);
         return &arg.value.UInt64;
     }
 
-    pub fn uint128(self: *Self, name: []const u8, desc: []const u8, value: u128) !*u128 {
+    pub fn uint128(self: *Self, name: []const u8, desc: []const u8, required: bool, value: u128) !*u128 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .UInt128 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .UInt128 = value });
         try self.args.put(name, arg);
         return &arg.value.UInt128;
     }
 
-    pub fn float32(self: *Self, name: []const u8, desc: []const u8, value: f32) !*f32 {
+    pub fn float32(self: *Self, name: []const u8, desc: []const u8, required: bool, value: f32) !*f32 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Float32 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Float32 = value });
         try self.args.put(name, arg);
         return &arg.value.Float32;
     }
 
-    pub fn float64(self: *Self, name: []const u8, desc: []const u8, value: f64) !*f64 {
+    pub fn float64(self: *Self, name: []const u8, desc: []const u8, required: bool, value: f64) !*f64 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Float64 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Float64 = value });
         try self.args.put(name, arg);
         return &arg.value.Float64;
     }
 
-    pub fn float128(self: *Self, name: []const u8, desc: []const u8, value: f128) !*f128 {
+    pub fn float128(self: *Self, name: []const u8, desc: []const u8, required: bool, value: f128) !*f128 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Float128 = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .Float128 = value });
         try self.args.put(name, arg);
         return &arg.value.Float128;
     }
 
-    pub fn string(self: *Self, name: []const u8, desc: []const u8, value: []const u8) !*[]const u8 {
+    pub fn string(self: *Self, name: []const u8, desc: []const u8, required: bool, value: []const u8) !*[]const u8 {
+        if (self.args.contains(name)) {
+            return ArgDefinitionError.Duplicate;
+        }
+
         const arg = try self.allocator.create(Arg);
-        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .String = value });
+        arg.* = try Arg.make_arg(name, desc, required, ArgTypes{ .String = value });
         try self.args.put(name, arg);
         return &arg.value.String;
     }
@@ -263,6 +317,8 @@ pub const Args = struct {
                             }
 
                             active_key = tmp;
+
+                            if (entry.required) entry.*.supplied = true;
                         } else {
                             return ArgParserError.ArgumentNotDefined;
                         }
@@ -274,6 +330,8 @@ pub const Args = struct {
 
                         if (self.args.contains(tmp)) {
                             active_key = tmp;
+                            const entry = self.args.get(tmp) orelse return ArgParserError.ErroneousInput;
+                            if (entry.required) entry.*.supplied = true;
                         } else if (is_num_val and active_key.len > 0) {
                             const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
                             switch (entry.value) {
@@ -282,6 +340,8 @@ pub const Args = struct {
                                 },
                                 else => return ArgParserError.ErroneousInput,
                             }
+
+                            if (entry.required) entry.*.supplied = true;
                         } else {
                             return ArgParserError.ArgumentNotDefined;
                         }
@@ -309,6 +369,13 @@ pub const Args = struct {
             },
             else => @compileError("Only use ArgIterator (Release) and MockArgIterator (Testing)."),
         }
+        // Check if the required arguments were passed otherwise error out.
+        var passed_it = self.args.iterator();
+        while (passed_it.next()) |passed| {
+            if (passed.value_ptr.*.required and !passed.value_ptr.*.supplied) {
+                return ArgParserError.RequiredArgument;
+            }
+        }
     }
 
     pub fn usage(self: *Self, callback: ?*const fn () void) !void {
@@ -322,7 +389,7 @@ pub const Args = struct {
             try io.writeAll("  Flags:\n");
 
             while (it.next()) |item| {
-                try io.print("\t--{s} [{s}] - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.description });
+                try io.print("\t--{s} [{s}] - Required: {} - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.required, item.*.description });
             }
             std.process.exit(0);
         }
@@ -361,22 +428,22 @@ const MockArgIterator = struct {
 };
 
 test "Optzig.Arg make_arg validation" {
-    const test_object = try Arg.make_arg("valid", "description", .{ .Boolean = false });
+    const test_object = try Arg.make_arg("valid", "description", false, .{ .Boolean = false });
 
     try testing.expectEqualStrings("valid", test_object.name);
     try testing.expectEqualStrings("description", test_object.description);
-    const data = .{ .Boolean = false };
-    try testing.expectEqual(data.Boolean, test_object.value.Boolean);
+    try testing.expectEqual(false, test_object.required);
+    try testing.expectEqual(false, test_object.value.Boolean);
 }
 
 test "Optzig.Arg make_arg empty name error check" {
-    const test_object = Arg.make_arg("", "description", .{ .Boolean = false });
+    const test_object = Arg.make_arg("", "description", false, .{ .Boolean = false });
 
     try testing.expectError(ArgDefinitionError.EmptyName, test_object);
 }
 
 test "Optzig.Arg.make_arg empty description error check" {
-    const test_object = Arg.make_arg("flag", "", .{ .Boolean = false });
+    const test_object = Arg.make_arg("flag", "", false, .{ .Boolean = false });
 
     try testing.expectError(ArgDefinitionError.EmptyDesc, test_object);
 }
@@ -400,15 +467,17 @@ test "Optzig.Args validation" {
 
     var args = Args.init(arena.allocator());
 
-    try args.add("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
-    try args.add("port", "Set the server binding port.", ArgTypes{ .UInt32 = 8080 });
+    try args.add("verbose", "Set the application verbosity levels.", false, ArgTypes{ .Boolean = false });
+    try args.add("port", "Set the server binding port.", true, ArgTypes{ .UInt32 = 8080 });
 
     try testing.expectEqualStrings("verbose", args.args.get("verbose").?.name);
     try testing.expectEqualStrings("Set the application verbosity levels.", args.args.get("verbose").?.description);
+    try testing.expectEqual(false, args.args.get("verbose").?.required);
     try testing.expectEqual(false, args.args.get("verbose").?.value.Boolean);
 
     try testing.expectEqualStrings("port", args.args.get("port").?.name);
     try testing.expectEqualStrings("Set the server binding port.", args.args.get("port").?.description);
+    try testing.expectEqual(true, args.args.get("port").?.required);
     try testing.expectEqual(8080, args.args.get("port").?.value.UInt32);
 }
 
@@ -418,8 +487,8 @@ test "Optzig.Args parse validation" {
 
     var args = Args.init(arena.allocator());
 
-    try args.add("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
-    try args.add("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
+    try args.add("verbose", "Set the application verbosity levels.", false, ArgTypes{ .Boolean = false });
+    try args.add("port", "Set the server binding port.", false, ArgTypes{ .UInt32 = 0 });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose", "false", "--port", "8080" });
 
@@ -435,7 +504,7 @@ test "Optzig.Args parse ArgumentNotDefined" {
 
     var args = Args.init(arena.allocator());
 
-    try args.add("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.add("verbose", "Set the application verbosity levels.", false, ArgTypes{ .Boolean = false });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbosity", "false" });
 
@@ -450,8 +519,8 @@ test "Optzig.Args parse negative value" {
 
     var args = Args.init(arena.allocator());
 
-    try args.add("sr", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
-    try args.add("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
+    try args.add("sr", "Set the query search radious.", false, ArgTypes{ .Float32 = 0.0 });
+    try args.add("scalar", "Multiplier factor.", false, ArgTypes{ .Int32 = 0 });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--sr", "-12.5", "--scalar", "-54" });
 
@@ -467,8 +536,8 @@ test "Optzig.Args parse single dash and negative number differentiation" {
 
     var args = Args.init(arena.allocator());
 
-    try args.add("search-radius", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
-    try args.add("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
+    try args.add("search-radius", "Set the query search radious.", false, ArgTypes{ .Float32 = 0.0 });
+    try args.add("scalar", "Multiplier factor.", false, ArgTypes{ .Int32 = 0 });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "-search-radius", "-.35", "-scalar", "-125" });
 
@@ -484,7 +553,7 @@ test "Optzig.Args parse togglable boolean" {
 
     var args = Args.init(arena.allocator());
 
-    try args.add("verbose", "Toggle output verbosity.", ArgTypes{ .Boolean = false });
+    try args.add("verbose", "Toggle output verbosity.", false, ArgTypes{ .Boolean = false });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose" });
 
@@ -499,17 +568,17 @@ test "Optzig.Args binding functions" {
 
     var args = Args.init(arena.allocator());
 
-    const b = try args.boolean("bool", "Boolean flag", false);
-    const i32_val = try args.int32("int32", "Int32 value", 0);
-    const i64_val = try args.int64("int64", "Int64 value", 0);
-    const i128_val = try args.int128("int128", "Int128 value", 0);
-    const u32_val = try args.uint32("uint32", "UInt32 value", 0);
-    const u64_val = try args.uint64("uint64", "UInt64 value", 0);
-    const u128_val = try args.uint128("uint128", "UInt128 value", 0);
-    const f32_val = try args.float32("float32", "Float32 value", 0.0);
-    const f64_val = try args.float64("float64", "Float64 value", 0.0);
-    const f128_val = try args.float128("float128", "Float128 value", 0.0);
-    const str_val = try args.string("string", "String value", "");
+    const b = try args.boolean("bool", "Boolean flag", false, false);
+    const i32_val = try args.int32("int32", "Int32 value", false, 0);
+    const i64_val = try args.int64("int64", "Int64 value", false, 0);
+    const i128_val = try args.int128("int128", "Int128 value", false, 0);
+    const u32_val = try args.uint32("uint32", "UInt32 value", false, 0);
+    const u64_val = try args.uint64("uint64", "UInt64 value", false, 0);
+    const u128_val = try args.uint128("uint128", "UInt128 value", false, 0);
+    const f32_val = try args.float32("float32", "Float32 value", false, 0.0);
+    const f64_val = try args.float64("float64", "Float64 value", false, 0.0);
+    const f128_val = try args.float128("float128", "Float128 value", false, 0.0);
+    const str_val = try args.string("string", "String value", false, "");
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--bool", "true", "--int32", "-123", "--int64", "999999", "--int128", "-999999999", "--uint32", "456", "--uint64", "3000000", "--uint128", "123456789", "--float32", "2.5", "--float64", "3.14159", "--float128", "2.71828", "--string", "hello" });
 
@@ -526,5 +595,38 @@ test "Optzig.Args binding functions" {
     try testing.expectEqual(@as(f64, 3.14159), f64_val.*);
     try testing.expectEqual(@as(f128, 2.71828), f128_val.*);
     try testing.expectEqualStrings("hello", str_val.*);
+}
+
+test "Optzig.Args required argument not passed error" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var args = Args.init(arena.allocator());
+
+    _ = try args.string("config", "Path to the configuration file.", true, "");
+    _ = try args.boolean("verbose", "Increate the verbosity levels.", false, false);
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose" });
+
+    const parse_res = args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectError(ArgParserError.RequiredArgument, parse_res);
+}
+
+test "Optzig.Args required argument passed" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var args = Args.init(arena.allocator());
+
+    const config = try args.string("config", "Path to the configuration file.", true, "");
+    const verbose = try args.boolean("verbose", "Increate the verbosity levels.", false, false);
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--config", "~/.config/app/conf.json", "--verbose" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqual("~/.config/app/conf.json", config.*);
+    try testing.expectEqual(true, verbose.*);
 }
 
