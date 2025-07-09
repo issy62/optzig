@@ -20,14 +20,19 @@ pub fn main() !void {
 
     var ag = opt.Args.init(arena.allocator());
 
-    const verb = try ag.boolean("verbose", "verbosity level", false);
-    const port = try ag.float32("port", "binding port", 0.0);
-    const to = try ag.string("to", "outbound phone number", "");
-    const help = try ag.boolean("help", "Print this usage", false);
+    const verb = try ag.boolean("verbose", "verbosity level", false, false);
+    const port = try ag.float32("port", "binding port", true, 0.0);
+    const to = try ag.string("to", "outbound phone number", false, "");
+    const help = try ag.boolean("help", "Print this usage", false, false);
 
     var arg_iputs = try std.process.argsWithAllocator(arena.allocator());
 
-    try ag.parse(std.process.ArgIterator, &arg_iputs);
+    ag.parse(std.process.ArgIterator, &arg_iputs) catch |err| {
+        switch (err) {
+            opt.ArgParserError.RequiredArgument => try ag.usage(null),
+            else => return err,
+        }
+    };
 
     if (help.*) {
         try ag.usage(null);
