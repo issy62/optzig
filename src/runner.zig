@@ -26,7 +26,7 @@ pub fn main() !void {
 
     var arg_iputs = try std.process.argsWithAllocator(arena.allocator());
 
-    try ag.parse(&arg_iputs);
+    try ag.parse(std.process.ArgIterator, &arg_iputs);
 
     const port_n = ag.items.get("port").?.value.Float32;
     const to_n = ag.items.get("to").?.value.String;
