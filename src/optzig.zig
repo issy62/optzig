@@ -54,13 +54,12 @@ pub const Arg = struct {
     description: []const u8,
     value: ArgTypes,
 
-    // TODO: Remove the dependency of the ArenaAllocator and let the user choose the allocator.
-    pub fn make_arg(arena: *std.heap.ArenaAllocator, name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
+    pub fn make_arg(allocator: std.mem.Allocator, name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
         if (name.len == 0) return ArgDefinitionError.EmptyName;
         if (desc.len == 0) return ArgDefinitionError.EmptyDesc;
 
         // TODO: Remove the dash addition. Expect them as input but remove them before comp parse time.
-        const temp_name = try std.mem.concat(arena.allocator(), u8, &[_][]const u8{ "--", name });
+        const temp_name = try std.mem.concat(allocator, u8, &[_][]const u8{ "--", name });
 
         return .{
             .name = temp_name,
@@ -83,23 +82,19 @@ fn parseToBool(str: []const u8) ArgParserError!bool {
 
 pub const Args = struct {
     const Self = @This();
-    arena: *std.heap.ArenaAllocator,
+    allocator: std.mem.Allocator,
     items: std.StringHashMap(Arg),
 
-    pub fn init(arena: *std.heap.ArenaAllocator) Self {
+    pub fn init(allocator: std.mem.Allocator) Self {
         return .{
-            .arena = arena,
-            .items = std.StringHashMap(Arg).init(arena.allocator()),
+            .allocator = allocator,
+            .items = std.StringHashMap(Arg).init(allocator),
         };
     }
 
     pub fn put(self: *Self, name: []const u8, desc: []const u8, value: ArgTypes) !void {
-        const arg = try Arg.make_arg(self.arena, name, desc, value);
+        const arg = try Arg.make_arg(self.allocator, name, desc, value);
         try self.items.put(name, arg);
-    }
-
-    pub fn deinit(self: *Self) void {
-        self.arena.deinit();
     }
 
     inline fn parseBoolean(self: *Self, src: []const u8, active_key: []const u8) !void {
@@ -283,7 +278,7 @@ test "Optzig.Arg make_arg validation" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     defer arena.deinit();
 
-    const test_object = try Arg.make_arg(&arena, "valid", "description", .{ .Boolean = false });
+    const test_object = try Arg.make_arg(arena.allocator(), "valid", "description", .{ .Boolean = false });
 
     try testing.expectEqualStrings("--valid", test_object.name);
     try testing.expectEqualStrings("description", test_object.description);
@@ -292,10 +287,10 @@ test "Optzig.Arg make_arg validation" {
 }
 
 test "Optzig.Arg make_arg empty name error check" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    const test_object = Arg.make_arg(&allocator, "", "description", .{ .Boolean = false });
+    const test_object = Arg.make_arg(arena.allocator(), "", "description", .{ .Boolean = false });
 
     try testing.expectError(ArgDefinitionError.EmptyName, test_object);
 }
@@ -304,7 +299,7 @@ test "Optzig.Arg.make_arg empty description error check" {
     var arena = std.heap.ArenaAllocator.init(testing.allocator);
     arena.deinit();
 
-    const test_object = Arg.make_arg(&arena, "flag", "", .{ .Boolean = false });
+    const test_object = Arg.make_arg(arena.allocator(), "flag", "", .{ .Boolean = false });
 
     try testing.expectError(ArgDefinitionError.EmptyDesc, test_object);
 }
@@ -323,10 +318,10 @@ test "Optzig parseToBool error check" {
 }
 
 test "Optzig.Args validation" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    var args = Args.init(&allocator);
+    var args = Args.init(arena.allocator());
 
     try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
     try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 8080 });
@@ -341,10 +336,10 @@ test "Optzig.Args validation" {
 }
 
 test "Optzig.Args parse validation" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    var args = Args.init(&allocator);
+    var args = Args.init(arena.allocator());
 
     try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
     try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
@@ -358,10 +353,10 @@ test "Optzig.Args parse validation" {
 }
 
 test "Optzig.Args parse ArgumentNotDefined" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    var args = Args.init(&allocator);
+    var args = Args.init(arena.allocator());
 
     try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
 
@@ -373,10 +368,10 @@ test "Optzig.Args parse ArgumentNotDefined" {
 }
 
 test "Optzig.Args parse negative value" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    var args = Args.init(&allocator);
+    var args = Args.init(arena.allocator());
 
     try args.put("sr", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
     try args.put("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
@@ -390,10 +385,10 @@ test "Optzig.Args parse negative value" {
 }
 
 test "Optzig.Args parse single dash and negative number differentiation" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
 
-    var args = Args.init(&allocator);
+    var args = Args.init(arena.allocator());
 
     try args.put("search-radius", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
     try args.put("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
