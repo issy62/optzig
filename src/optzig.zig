@@ -1,13 +1,15 @@
 const std = @import("std");
 const testing = std.testing;
 
-// TODO: Split this into multiple errors
-pub const Error = error{
-    ArgDefinitionEmptyName,
-    ArgDefinitionEmptyDesc,
+pub const ArgDefinitionError = error{
+    EmptyName,
+    EmptyDesc,
+};
+
+pub const ArgParserError = error{
     ErroneusInput,
+    ArgumentNotDefined,
     BadBooleanInputValue,
-    InfiniteFloat,
 };
 
 pub const ArgTypes = union(enum) {
@@ -54,8 +56,8 @@ pub const Arg = struct {
 
     // TODO: Remove the dependency of the ArenaAllocator and let the user choose the allocator.
     pub fn make_arg(arena: *std.heap.ArenaAllocator, name: []const u8, desc: []const u8, value_type: ArgTypes) !Self {
-        if (name.len == 0) return Error.ArgDefinitionEmptyName;
-        if (desc.len == 0) return Error.ArgDefinitionEmptyDesc;
+        if (name.len == 0) return ArgDefinitionError.EmptyName;
+        if (desc.len == 0) return ArgDefinitionError.EmptyDesc;
 
         // TODO: Remove the dash addition. Expect them as input but remove them before comp parse time.
         const temp_name = try std.mem.concat(arena.allocator(), u8, &[_][]const u8{ "--", name });
@@ -68,7 +70,7 @@ pub const Arg = struct {
     }
 };
 
-fn parseToBool(str: []const u8) Error!bool {
+fn parseToBool(str: []const u8) ArgParserError!bool {
     if (std.mem.eql(u8, str, "True")) return true;
     if (std.mem.eql(u8, str, "False")) return false;
     if (std.mem.eql(u8, str, "true")) return true;
@@ -76,7 +78,7 @@ fn parseToBool(str: []const u8) Error!bool {
     if (std.mem.eql(u8, str, "1")) return true;
     if (std.mem.eql(u8, str, "0")) return false;
 
-    return Error.BadBooleanInputValue;
+    return ArgParserError.BadBooleanInputValue;
 }
 
 pub const Args = struct {
@@ -167,10 +169,6 @@ pub const Args = struct {
                     entry.value = ArgTypes{ .Float32 = std.fmt.parseFloat(f32, src) catch |err| {
                         return err;
                     } };
-
-                    if (std.math.isInf(entry.value.Float32)) {
-                        return Error.InfiniteFloat;
-                    }
                 }
             },
             .Float64 => {
@@ -178,10 +176,6 @@ pub const Args = struct {
                     entry.value = ArgTypes{ .Float64 = std.fmt.parseFloat(f64, src) catch |err| {
                         return err;
                     } };
-
-                    if (std.math.isInf(entry.value.Float64)) {
-                        return Error.InfiniteFloat;
-                    }
                 }
             },
             .Float128 => {
@@ -189,17 +183,12 @@ pub const Args = struct {
                     entry.value = ArgTypes{ .Float128 = std.fmt.parseFloat(f128, src) catch |err| {
                         return err;
                     } };
-
-                    if (std.math.isInf(entry.value.Float128)) {
-                        return Error.InfiniteFloat;
-                    }
                 }
             },
             else => {},
         }
     }
 
-    // TODO: A MockArgIterator support do the check at comptime.
     pub fn parse(self: *Self, comptime ItType: type, argv: *ItType) !void {
         switch (ItType) {
             std.process.ArgIterator, MockArgIterator => {
@@ -212,23 +201,32 @@ pub const Args = struct {
                         if (self.items.contains(tmp)) {
                             active_key = tmp;
                         } else {
-                            std.log.debug("Argument was not defined\n", .{});
-                            return Error.ErroneusInput;
+                            return ArgParserError.ArgumentNotDefined;
                         }
                     } else if (std.mem.startsWith(u8, in, "-")) {
                         const tmp = std.mem.trimLeft(u8, in, "-");
+
+                        // Check if the input is a negative numerical value or a float value stating with .
+                        const is_num_val = tmp.len > 0 and (std.ascii.isDigit(tmp[0]) or tmp[0] == '.');
+
                         if (self.items.contains(tmp)) {
                             active_key = tmp;
+                        } else if (is_num_val and active_key.len > 0) {
+                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneusInput;
+                            switch (entry.value) {
+                                .Int32, .Int64, .Int128, .Float32, .Float64, .Float128 => {
+                                    try parseNumeric(self, in, active_key);
+                                },
+                                else => return ArgParserError.ErroneusInput,
+                            }
                         } else {
-                            std.log.debug("Argument was not defined\n", .{});
-                            return Error.ErroneusInput;
+                            return ArgParserError.ArgumentNotDefined;
                         }
                     } else {
                         if (in.len == 0) {
-                            std.log.debug("Input: {s}", .{in});
-                            return Error.ErroneusInput;
+                            return ArgParserError.ErroneusInput;
                         } else {
-                            const entry = self.items.get(active_key) orelse return Error.ErroneusInput;
+                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneusInput;
 
                             switch (entry.value) {
                                 .Boolean => {
@@ -299,7 +297,7 @@ test "Optzig.Arg make_arg empty name error check" {
 
     const test_object = Arg.make_arg(&allocator, "", "description", .{ .Boolean = false });
 
-    try testing.expectError(Error.ArgDefinitionEmptyName, test_object);
+    try testing.expectError(ArgDefinitionError.EmptyName, test_object);
 }
 
 test "Optzig.Arg.make_arg empty description error check" {
@@ -308,7 +306,7 @@ test "Optzig.Arg.make_arg empty description error check" {
 
     const test_object = Arg.make_arg(&arena, "flag", "", .{ .Boolean = false });
 
-    try testing.expectError(Error.ArgDefinitionEmptyDesc, test_object);
+    try testing.expectError(ArgDefinitionError.EmptyDesc, test_object);
 }
 
 test "Optzig parseToBool" {
@@ -321,7 +319,7 @@ test "Optzig parseToBool" {
 }
 
 test "Optzig parseToBool error check" {
-    try testing.expectError(Error.BadBooleanInputValue, parseToBool("z3R0"));
+    try testing.expectError(ArgParserError.BadBooleanInputValue, parseToBool("z3R0"));
 }
 
 test "Optzig.Args validation" {
@@ -342,23 +340,6 @@ test "Optzig.Args validation" {
     try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
 }
 
-// TODO: Spread this test out to test all error avenues
-test "Optzig.Args parse ErroneusInput" {
-    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
-    defer allocator.deinit();
-
-    var args = Args.init(&allocator);
-
-    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
-    try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
-
-    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbosity", "false" });
-
-    const parse_res = args.parse(MockArgIterator, &mock_it);
-
-    try testing.expectError(Error.ErroneusInput, parse_res);
-}
-
 test "Optzig.Args parse validation" {
     var allocator = std.heap.ArenaAllocator.init(testing.allocator);
     defer allocator.deinit();
@@ -374,5 +355,54 @@ test "Optzig.Args parse validation" {
 
     try testing.expectEqual(false, args.items.get("verbose").?.value.Boolean);
     try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
+}
+
+test "Optzig.Args parse ArgumentNotDefined" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    var args = Args.init(&allocator);
+
+    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbosity", "false" });
+
+    const parse_res = args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectError(ArgParserError.ArgumentNotDefined, parse_res);
+}
+
+test "Optzig.Args parse negative value" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    var args = Args.init(&allocator);
+
+    try args.put("sr", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
+    try args.put("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--sr", "-12.5", "--scalar", "-54" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqual(-12.5, args.items.get("sr").?.value.Float32);
+    try testing.expectEqual(-54, args.items.get("scalar").?.value.Int32);
+}
+
+test "Optzig.Args parse single dash and negative number differentiation" {
+    var allocator = std.heap.ArenaAllocator.init(testing.allocator);
+    defer allocator.deinit();
+
+    var args = Args.init(&allocator);
+
+    try args.put("search-radius", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
+    try args.put("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "-search-radius", "-.35", "-scalar", "-125" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqual(-0.35, args.items.get("search-radius").?.value.Float32);
+    try testing.expectEqual(-125, args.items.get("scalar").?.value.Int32);
 }
 
