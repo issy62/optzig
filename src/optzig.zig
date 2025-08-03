@@ -229,6 +229,23 @@ pub const Args = struct {
             else => @compileError("Only use ArgIterator (Release) and MockArgIterator (Testing)."),
         }
     }
+
+    pub fn usage(self: *Self, callback: ?*const fn () void) !void {
+        if (callback) |cb| {
+            cb();
+        } else {
+            const io = std.io.getStdOut().writer();
+            var it = self.items.valueIterator();
+
+            try io.writeAll("USAGE\n");
+            try io.writeAll("  Flags:\n");
+
+            while (it.next()) |item| {
+                try io.print("\t--{s} [{s}] - {s}\n", .{ item.name, item.value.toString(), item.description });
+            }
+            std.process.exit(0);
+        }
+    }
 };
 
 // ========================================

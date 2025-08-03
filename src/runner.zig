@@ -23,10 +23,15 @@ pub fn main() !void {
     try ag.put("verbose", "verbosity level", opt.ArgTypes{ .Boolean = false });
     try ag.put("port", "binding port", opt.ArgTypes{ .Float32 = 0.0 });
     try ag.put("to", "outbound phone number", opt.ArgTypes{ .String = "" });
+    try ag.put("help", "Print this usage", opt.ArgTypes{ .Boolean = false });
 
     var arg_iputs = try std.process.argsWithAllocator(arena.allocator());
 
     try ag.parse(std.process.ArgIterator, &arg_iputs);
+
+    if (ag.items.get("help").?.value.Boolean) {
+        try ag.usage(null);
+    }
 
     const port_n = ag.items.get("port").?.value.Float32;
     const to_n = ag.items.get("to").?.value.String;
