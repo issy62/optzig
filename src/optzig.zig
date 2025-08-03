@@ -60,7 +60,7 @@ pub const Arg = struct {
     }
 };
 
-fn parseToBool(str: []const u8) ArgParserError!bool {
+inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
     var buffer: [5]u8 = undefined;
     const sanitized_str = std.ascii.lowerString(&buffer, std.mem.trim(u8, str, &std.ascii.whitespace));
 
@@ -81,36 +81,119 @@ fn parseToBool(str: []const u8) ArgParserError!bool {
 pub const Args = struct {
     const Self = @This();
     allocator: std.mem.Allocator,
-    items: std.StringHashMap(Arg),
+    args: std.StringHashMap(*Arg),
 
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
-            .items = std.StringHashMap(Arg).init(allocator),
+            .args = std.StringHashMap(*Arg).init(allocator),
         };
     }
 
-    pub fn put(self: *Self, name: []const u8, desc: []const u8, value: ArgTypes) !void {
-        const arg = try Arg.make_arg(name, desc, value);
-        try self.items.put(name, arg);
+    pub fn add(self: *Self, name: []const u8, desc: []const u8, value: ArgTypes) !void {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, value);
+        try self.args.put(name, arg);
     }
 
-    inline fn parseBoolean(self: *Self, src: []const u8, active_key: []const u8) !void {
-        if (self.items.getPtr(active_key)) |entry| {
-            entry.value = ArgTypes{ .Boolean = parseToBool(src) catch |err| {
+    pub fn boolean(self: *Self, name: []const u8, desc: []const u8, value: bool) !*bool {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Boolean = value });
+        try self.args.put(name, arg);
+        return &arg.value.Boolean;
+    }
+
+    pub fn int32(self: *Self, name: []const u8, desc: []const u8, value: i32) !*i32 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Int32 = value });
+        try self.args.put(name, arg);
+        return &arg.value.Int32;
+    }
+
+    pub fn int64(self: *Self, name: []const u8, desc: []const u8, value: i64) !*i64 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Int64 = value });
+        try self.args.put(name, arg);
+        return &arg.value.Int64;
+    }
+
+    pub fn int128(self: *Self, name: []const u8, desc: []const u8, value: i128) !*i128 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Int128 = value });
+        try self.args.put(name, arg);
+        return &arg.value.Int128;
+    }
+
+    pub fn uint32(self: *Self, name: []const u8, desc: []const u8, value: u32) !*u32 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .UInt32 = value });
+        try self.args.put(name, arg);
+        return &arg.value.UInt32;
+    }
+
+    pub fn uint64(self: *Self, name: []const u8, desc: []const u8, value: u64) !*u64 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .UInt64 = value });
+        try self.args.put(name, arg);
+        return &arg.value.UInt64;
+    }
+
+    pub fn uint128(self: *Self, name: []const u8, desc: []const u8, value: u128) !*u128 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .UInt128 = value });
+        try self.args.put(name, arg);
+        return &arg.value.UInt128;
+    }
+
+    pub fn float32(self: *Self, name: []const u8, desc: []const u8, value: f32) !*f32 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Float32 = value });
+        try self.args.put(name, arg);
+        return &arg.value.Float32;
+    }
+
+    pub fn float64(self: *Self, name: []const u8, desc: []const u8, value: f64) !*f64 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Float64 = value });
+        try self.args.put(name, arg);
+        return &arg.value.Float64;
+    }
+
+    pub fn float128(self: *Self, name: []const u8, desc: []const u8, value: f128) !*f128 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .Float128 = value });
+        try self.args.put(name, arg);
+        return &arg.value.Float128;
+    }
+
+    pub fn string(self: *Self, name: []const u8, desc: []const u8, value: []const u8) !*[]const u8 {
+        const arg = try self.allocator.create(Arg);
+        arg.* = try Arg.make_arg(name, desc, ArgTypes{ .String = value });
+        try self.args.put(name, arg);
+        return &arg.value.String;
+    }
+
+    pub fn get_value(self: Self, key: []const u8) !ArgTypes {
+        const arg = self.args.get(key) orelse return ArgParserError.ArgumentNotDefined;
+        return arg.value;
+    }
+
+    inline fn parse_boolean(self: *Self, src: []const u8, active_key: []const u8) !void {
+        if (self.args.get(active_key)) |entry| {
+            entry.value = ArgTypes{ .Boolean = parse_to_bool(src) catch |err| {
                 return err;
             } };
         }
     }
 
-    inline fn parseString(self: *Self, src: []const u8, active_key: []const u8) !void {
-        if (self.items.getPtr(active_key)) |entry| {
+    inline fn parse_string(self: *Self, src: []const u8, active_key: []const u8) !void {
+        if (self.args.get(active_key)) |entry| {
             entry.value = ArgTypes{ .String = src };
         }
     }
 
-    inline fn parseNumeric(self: *Self, src: []const u8, active_key: []const u8) !void {
-        if (self.items.getPtr(active_key)) |entry| {
+    inline fn parse_numeric(self: *Self, src: []const u8, active_key: []const u8) !void {
+        if (self.args.get(active_key)) |entry| {
             switch (entry.value) {
                 .Int32 => {
                     entry.value = ArgTypes{ .Int32 = std.fmt.parseInt(i32, src, 10) catch |err| {
@@ -157,7 +240,7 @@ pub const Args = struct {
                         return err;
                     } };
                 },
-                else => {},
+                else => return ArgParserError.ErroneousInput,
             }
         }
     }
@@ -171,14 +254,12 @@ pub const Args = struct {
                 while (argv.next()) |in| {
                     if (std.mem.startsWith(u8, in, "--")) {
                         const tmp = std.mem.trimLeft(u8, in, "--");
-                        if (self.items.contains(tmp)) {
+                        if (self.args.contains(tmp)) {
                             // Boolean togglable flag only works with double dash
-                            const entry = self.items.get(tmp) orelse return ArgParserError.ErroneousInput;
+                            const entry = self.args.get(tmp) orelse return ArgParserError.ErroneousInput;
 
                             if (std.meta.activeTag(entry.value) == .Boolean) {
-                                if (self.items.getPtr(tmp)) |ptr| {
-                                    ptr.value.Boolean = !entry.value.Boolean;
-                                }
+                                entry.value.Boolean = !entry.value.Boolean;
                             }
 
                             active_key = tmp;
@@ -191,13 +272,13 @@ pub const Args = struct {
                         // Check if the input is a negative numerical value or a float value stating with .
                         const is_num_val = tmp.len > 0 and (std.ascii.isDigit(tmp[0]) or tmp[0] == '.');
 
-                        if (self.items.contains(tmp)) {
+                        if (self.args.contains(tmp)) {
                             active_key = tmp;
                         } else if (is_num_val and active_key.len > 0) {
-                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneousInput;
+                            const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
                             switch (entry.value) {
                                 .Int32, .Int64, .Int128, .Float32, .Float64, .Float128 => {
-                                    try parseNumeric(self, in, active_key);
+                                    try parse_numeric(self, in, active_key);
                                 },
                                 else => return ArgParserError.ErroneousInput,
                             }
@@ -209,17 +290,17 @@ pub const Args = struct {
                             // Handle empty string value
                             return ArgParserError.ErroneousInput;
                         } else {
-                            const entry = self.items.get(active_key) orelse return ArgParserError.ErroneousInput;
+                            const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
 
                             switch (entry.value) {
                                 .Boolean => {
-                                    try parseBoolean(self, in, active_key);
+                                    try parse_boolean(self, in, active_key);
                                 },
                                 .Int32, .Int64, .Int128, .UInt32, .UInt64, .UInt128, .Float32, .Float64, .Float128 => {
-                                    try parseNumeric(self, in, active_key);
+                                    try parse_numeric(self, in, active_key);
                                 },
                                 .String => {
-                                    try parseString(self, in, active_key);
+                                    try parse_string(self, in, active_key);
                                 },
                             }
                         }
@@ -235,13 +316,13 @@ pub const Args = struct {
             cb();
         } else {
             const io = std.io.getStdOut().writer();
-            var it = self.items.valueIterator();
+            var it = self.args.valueIterator();
 
             try io.writeAll("USAGE\n");
             try io.writeAll("  Flags:\n");
 
             while (it.next()) |item| {
-                try io.print("\t--{s} [{s}] - {s}\n", .{ item.name, item.value.toString(), item.description });
+                try io.print("\t--{s} [{s}] - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.description });
             }
             std.process.exit(0);
         }
@@ -300,17 +381,17 @@ test "Optzig.Arg.make_arg empty description error check" {
     try testing.expectError(ArgDefinitionError.EmptyDesc, test_object);
 }
 
-test "Optzig parseToBool" {
-    try testing.expectEqual(parseToBool("True"), true);
-    try testing.expectEqual(parseToBool("true"), true);
-    try testing.expectEqual(parseToBool("False"), false);
-    try testing.expectEqual(parseToBool("false"), false);
-    try testing.expectEqual(parseToBool("1"), true);
-    try testing.expectEqual(parseToBool("0"), false);
+test "Optzig parse_to_bool" {
+    try testing.expectEqual(parse_to_bool("True"), true);
+    try testing.expectEqual(parse_to_bool("true"), true);
+    try testing.expectEqual(parse_to_bool("False"), false);
+    try testing.expectEqual(parse_to_bool("false"), false);
+    try testing.expectEqual(parse_to_bool("1"), true);
+    try testing.expectEqual(parse_to_bool("0"), false);
 }
 
-test "Optzig parseToBool error check" {
-    try testing.expectError(ArgParserError.BadBooleanInputValue, parseToBool("z3R0"));
+test "Optzig parse_to_bool error check" {
+    try testing.expectError(ArgParserError.BadBooleanInputValue, parse_to_bool("z3R0"));
 }
 
 test "Optzig.Args validation" {
@@ -319,16 +400,16 @@ test "Optzig.Args validation" {
 
     var args = Args.init(arena.allocator());
 
-    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
-    try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 8080 });
+    try args.add("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.add("port", "Set the server binding port.", ArgTypes{ .UInt32 = 8080 });
 
-    try testing.expectEqualStrings("verbose", args.items.get("verbose").?.name);
-    try testing.expectEqualStrings("Set the application verbosity levels.", args.items.get("verbose").?.description);
-    try testing.expectEqual(false, args.items.get("verbose").?.value.Boolean);
+    try testing.expectEqualStrings("verbose", args.args.get("verbose").?.name);
+    try testing.expectEqualStrings("Set the application verbosity levels.", args.args.get("verbose").?.description);
+    try testing.expectEqual(false, args.args.get("verbose").?.value.Boolean);
 
-    try testing.expectEqualStrings("port", args.items.get("port").?.name);
-    try testing.expectEqualStrings("Set the server binding port.", args.items.get("port").?.description);
-    try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
+    try testing.expectEqualStrings("port", args.args.get("port").?.name);
+    try testing.expectEqualStrings("Set the server binding port.", args.args.get("port").?.description);
+    try testing.expectEqual(8080, args.args.get("port").?.value.UInt32);
 }
 
 test "Optzig.Args parse validation" {
@@ -337,15 +418,15 @@ test "Optzig.Args parse validation" {
 
     var args = Args.init(arena.allocator());
 
-    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
-    try args.put("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
+    try args.add("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.add("port", "Set the server binding port.", ArgTypes{ .UInt32 = 0 });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose", "false", "--port", "8080" });
 
     try args.parse(MockArgIterator, &mock_it);
 
-    try testing.expectEqual(false, args.items.get("verbose").?.value.Boolean);
-    try testing.expectEqual(8080, args.items.get("port").?.value.UInt32);
+    try testing.expectEqual(false, args.args.get("verbose").?.value.Boolean);
+    try testing.expectEqual(8080, args.args.get("port").?.value.UInt32);
 }
 
 test "Optzig.Args parse ArgumentNotDefined" {
@@ -354,7 +435,7 @@ test "Optzig.Args parse ArgumentNotDefined" {
 
     var args = Args.init(arena.allocator());
 
-    try args.put("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
+    try args.add("verbose", "Set the application verbosity levels.", ArgTypes{ .Boolean = false });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbosity", "false" });
 
@@ -369,15 +450,15 @@ test "Optzig.Args parse negative value" {
 
     var args = Args.init(arena.allocator());
 
-    try args.put("sr", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
-    try args.put("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
+    try args.add("sr", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
+    try args.add("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--sr", "-12.5", "--scalar", "-54" });
 
     try args.parse(MockArgIterator, &mock_it);
 
-    try testing.expectEqual(-12.5, args.items.get("sr").?.value.Float32);
-    try testing.expectEqual(-54, args.items.get("scalar").?.value.Int32);
+    try testing.expectEqual(-12.5, args.args.get("sr").?.value.Float32);
+    try testing.expectEqual(-54, args.args.get("scalar").?.value.Int32);
 }
 
 test "Optzig.Args parse single dash and negative number differentiation" {
@@ -386,15 +467,15 @@ test "Optzig.Args parse single dash and negative number differentiation" {
 
     var args = Args.init(arena.allocator());
 
-    try args.put("search-radius", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
-    try args.put("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
+    try args.add("search-radius", "Set the query search radious.", ArgTypes{ .Float32 = 0.0 });
+    try args.add("scalar", "Multiplier factor.", ArgTypes{ .Int32 = 0 });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "-search-radius", "-.35", "-scalar", "-125" });
 
     try args.parse(MockArgIterator, &mock_it);
 
-    try testing.expectEqual(-0.35, args.items.get("search-radius").?.value.Float32);
-    try testing.expectEqual(-125, args.items.get("scalar").?.value.Int32);
+    try testing.expectEqual(-0.35, args.args.get("search-radius").?.value.Float32);
+    try testing.expectEqual(-125, args.args.get("scalar").?.value.Int32);
 }
 
 test "Optzig.Args parse togglable boolean" {
@@ -403,12 +484,47 @@ test "Optzig.Args parse togglable boolean" {
 
     var args = Args.init(arena.allocator());
 
-    try args.put("verbose", "Toggle output verbosity.", ArgTypes{ .Boolean = false });
+    try args.add("verbose", "Toggle output verbosity.", ArgTypes{ .Boolean = false });
 
     var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--verbose" });
 
     try args.parse(MockArgIterator, &mock_it);
 
-    try testing.expectEqual(true, args.items.get("verbose").?.value.Boolean);
+    try testing.expectEqual(true, args.args.get("verbose").?.value.Boolean);
+}
+
+test "Optzig.Args binding functions" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var args = Args.init(arena.allocator());
+
+    const b = try args.boolean("bool", "Boolean flag", false);
+    const i32_val = try args.int32("int32", "Int32 value", 0);
+    const i64_val = try args.int64("int64", "Int64 value", 0);
+    const i128_val = try args.int128("int128", "Int128 value", 0);
+    const u32_val = try args.uint32("uint32", "UInt32 value", 0);
+    const u64_val = try args.uint64("uint64", "UInt64 value", 0);
+    const u128_val = try args.uint128("uint128", "UInt128 value", 0);
+    const f32_val = try args.float32("float32", "Float32 value", 0.0);
+    const f64_val = try args.float64("float64", "Float64 value", 0.0);
+    const f128_val = try args.float128("float128", "Float128 value", 0.0);
+    const str_val = try args.string("string", "String value", "");
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--bool", "true", "--int32", "-123", "--int64", "999999", "--int128", "-999999999", "--uint32", "456", "--uint64", "3000000", "--uint128", "123456789", "--float32", "2.5", "--float64", "3.14159", "--float128", "2.71828", "--string", "hello" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqual(true, b.*);
+    try testing.expectEqual(-123, i32_val.*);
+    try testing.expectEqual(999999, i64_val.*);
+    try testing.expectEqual(-999999999, i128_val.*);
+    try testing.expectEqual(456, u32_val.*);
+    try testing.expectEqual(3000000, u64_val.*);
+    try testing.expectEqual(123456789, u128_val.*);
+    try testing.expectEqual(@as(f32, 2.5), f32_val.*);
+    try testing.expectEqual(@as(f64, 3.14159), f64_val.*);
+    try testing.expectEqual(@as(f128, 2.71828), f128_val.*);
+    try testing.expectEqualStrings("hello", str_val.*);
 }
 
