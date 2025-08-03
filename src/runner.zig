@@ -20,25 +20,21 @@ pub fn main() !void {
 
     var ag = opt.Args.init(arena.allocator());
 
-    try ag.put("verbose", "verbosity level", opt.ArgTypes{ .Boolean = false });
-    try ag.put("port", "binding port", opt.ArgTypes{ .Float32 = 0.0 });
-    try ag.put("to", "outbound phone number", opt.ArgTypes{ .String = "" });
-    try ag.put("help", "Print this usage", opt.ArgTypes{ .Boolean = false });
+    const verb = try ag.boolean("verbose", "verbosity level", false);
+    const port = try ag.float32("port", "binding port", 0.0);
+    const to = try ag.string("to", "outbound phone number", "");
+    const help = try ag.boolean("help", "Print this usage", false);
 
     var arg_iputs = try std.process.argsWithAllocator(arena.allocator());
 
     try ag.parse(std.process.ArgIterator, &arg_iputs);
 
-    if (ag.items.get("help").?.value.Boolean) {
+    if (help.*) {
         try ag.usage(null);
     }
 
-    const port_n = ag.items.get("port").?.value.Float32;
-    const to_n = ag.items.get("to").?.value.String;
-    const verb = ag.items.get("verbose").?.value.Boolean;
-
-    try io.print("Port Number: {d}\n", .{port_n});
-    try io.print("To Number: {s}\n", .{to_n});
-    try io.print("Vebose: {}\n", .{verb});
+    try io.print("Port Number: {d}\n", .{port.*});
+    try io.print("To Number: {s}\n", .{to.*});
+    try io.print("Vebose: {}\n", .{verb.*});
 }
 
