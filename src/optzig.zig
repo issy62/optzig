@@ -129,8 +129,7 @@ inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
         return switch (sanitized_str[0]) {
             '0' => false,
             '1' => true,
-            // TODO: Fix this on next feature branch it should throw BadBooleanInputValue
-            else => return ArgParserError.ErroneousInput,
+            else => return ArgParserError.BadBooleanInputValue,
         };
     }
 
@@ -552,6 +551,7 @@ test "Optzig parse_to_bool" {
 }
 
 test "Optzig parse_to_bool error check" {
+    try testing.expectError(ArgParserError.BadBooleanInputValue, parse_to_bool("3"));
     try testing.expectError(ArgParserError.BadBooleanInputValue, parse_to_bool("z3R0"));
 }
 
