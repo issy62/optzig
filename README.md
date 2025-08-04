@@ -54,5 +54,5 @@ Contributions are welcome! Please follow the guidelines outlined in the [CODE_OF
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [BSD 3-Clause](LICENSE).
 
