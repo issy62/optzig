@@ -7,6 +7,13 @@ pub fn build(b: *std.Build) void {
 
     const module = b.addModule("optzig", .{ .root_source_file = b.path("src/optzig.zig") });
 
+    const optizg_object = b.addObject(.{
+        .name = "optzig",
+        .root_source_file = b.path("src/optzig.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
     const tests = b.addTest(.{
         .root_source_file = b.path("src/optzig.zig"),
         .target = target,
@@ -26,6 +33,12 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addImport("optzig", module);
 
+    const doc = b.addInstallDirectory(.{
+        .source_dir = optizg_object.getEmittedDocs(),
+        .install_dir = .prefix,
+        .install_subdir = "docs",
+    });
+
     const run_cmd = b.addRunArtifact(exe);
     run_cmd.step.dependOn(b.getInstallStep());
 
@@ -41,5 +54,8 @@ pub fn build(b: *std.Build) void {
 
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_tests.step);
+
+    const doc_step = b.step("docs", "Generate docs to ziz-out/docs");
+    doc_step.dependOn(&doc.step);
 }
 
