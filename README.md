@@ -30,9 +30,9 @@ pub fn main() !void {
     var args = opt.Args.init(&arena);
 
     // Define arguments
-    try args.put("verbose", "Enable verbose output", opt.ArgTypes{ .Boolean = false });
-    try args.put("port", "Server port number", opt.ArgTypes{ .UInt16 = 8080 });
-    try args.put("name", "User name", opt.ArgTypes{ .String = undefined });
+    try args.add("verbose", "Enable verbose output", opt.ArgTypes{ .Boolean = false });
+    try args.add("port", "Server port number", opt.ArgTypes{ .UInt16 = 8080 });
+    try args.add("name", "User name", opt.ArgTypes{ .String = undefined });
 
     // Parse command-line arguments
     var arg_inputs = try std.process.argsWithAllocator(arena.allocator());
@@ -54,5 +54,5 @@ Contributions are welcome! Please follow the guidelines outlined in the [CODE_OF
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [BSD 3-Clause](LICENSE).
 
