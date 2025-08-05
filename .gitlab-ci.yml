@@ -28,3 +28,16 @@ run-release-job:
     - zig build run -Doptimize=ReleaseFast -- --help
     - zig build run -Doptimize=ReleaseFast -- --port 32.0 --to "5555555555" --verbose
 
+doc-pages:
+  stage: production
+  script:
+    - zig build docs
+    - mv zig-out/docs public
+  pages:
+    publish: public
+  rules:
+    - if: $CI_COMMIT_BRANCH == "master"
+      when: on_success
+    - if: $CI_COMMIT_BRANCH == "develop"
+      when: manual
+
