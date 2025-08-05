@@ -1,19 +1,58 @@
 const std = @import("std");
 const testing = std.testing;
 
+/// Errors that can occur when defining command-line arguments.
+/// These errors are thrown during argument setup, before parsing begins.
 pub const ArgDefinitionError = error{
+    /// Argument name cannot be empty.
+    /// Thrown when calling `Arg.make_arg()` with an empty name string.
     EmptyName,
+
+    /// Argument description cannot be empty.
+    /// Thrown when calling `Arg.make_arg()` with an empty description string.
     EmptyDesc,
+
+    /// Argument with this name already defined.
+    /// ***Thrown when calling:***
+    ///  - `Args.add()`
+    ///  - `Args.boolean()`
+    ///  - `Args.int32()`
+    ///  - `Args.int64()`
+    ///  - `Args.int128()`
+    ///  - `Args.uint32()`
+    ///  - `Args.uint64()`
+    ///  - `Args.uint128()`
+    ///  - `Args.float32()`
+    ///  - `Args.float64()`
+    ///  - `Args.float128()`
+    ///  - `Args.string()`
+    /// to define an argument that already exists.
     Duplicate,
 };
 
+/// Errors that can occur while parsing command-line arguments.
+/// These errors are thrown while parsing. It can be while parsing
+/// booleans, integers, floats, etc..
 pub const ArgParserError = error{
+    /// Invalid input format/values during the parsing stage.
+    /// Thrown by `Args.parse()` and any of the parsing helper functions.
     ErroneousInput,
+
+    /// Thrown by `Args.parse()` when the parser encounters an undefined argument.
     ArgumentNotDefined,
+
+    /// Thrown by `parse_to_bool()` if called with unaccepted input.
+    /// ***Accepted input:***
+    /// - `"True"`/`"False"` - case doesn't matter it all gets set to lower case.
+    /// - `'0'`/`'1'`
     BadBooleanInputValue,
+
+    /// Required inputs must be supplied at runtime.
+    /// Thrown by `Args.parse()` if the required arguments aren't supplied.
     RequiredArgument,
 };
 
+/// The supported argument data types.
 pub const ArgTypes = union(enum) {
     Boolean: bool,
     Int32: i32,
@@ -27,6 +66,7 @@ pub const ArgTypes = union(enum) {
     Float128: f128,
     String: []const u8,
 
+    /// Returns the string representation of active tag.
     pub fn toString(self: ArgTypes) []const u8 {
         return switch (self) {
             .Boolean => "bool",
@@ -44,14 +84,28 @@ pub const ArgTypes = union(enum) {
     }
 };
 
+/// `Arg` represents a single command-line argument.
 pub const Arg = struct {
     const Self = @This();
+    /// Argument name
     name: []const u8,
+
+    /// Argument description
     description: []const u8,
+
+    /// Mark the argument as required. If the required argument is not supplied
+    /// the parser will throw `ArgParserError.RequiredArgument`. The developer
+    /// can catch the error and handle it however they choose.
     required: bool,
+
+    /// Used internally to keep track of when an argument is passed to the parser.
     supplied: bool,
+
+    /// Holds the value and type of the given argument.
     value: ArgTypes,
 
+    /// Initialize and validate an instance of `Arg`. The function does validation
+    /// for the name and description fields since they shouldn't be empty.
     pub fn make_arg(name: []const u8, desc: []const u8, required: bool, value_type: ArgTypes) !Self {
         if (name.len == 0) return ArgDefinitionError.EmptyName;
         if (desc.len == 0) return ArgDefinitionError.EmptyDesc;
@@ -66,6 +120,7 @@ pub const Arg = struct {
     }
 };
 
+/// Convert an accepted narrow set of string literals to boolean
 inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
     var buffer: [5]u8 = undefined;
     const sanitized_str = std.ascii.lowerString(&buffer, std.mem.trim(u8, str, &std.ascii.whitespace));
@@ -74,7 +129,7 @@ inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
         return switch (sanitized_str[0]) {
             '0' => false,
             '1' => true,
-            else => return ArgParserError.ErroneousInput,
+            else => return ArgParserError.BadBooleanInputValue,
         };
     }
 
@@ -84,11 +139,19 @@ inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
     return ArgParserError.BadBooleanInputValue;
 }
 
+/// The argument container and parser for command-line arguments.
+/// Manages argument definitions, parsing and validation.
 pub const Args = struct {
+    /// Alias to `Args`
     const Self = @This();
+
+    /// Memory allocator for the entire object.
     allocator: std.mem.Allocator,
+
+    /// Internal hash map to store all the defined arguments.
     args: std.StringHashMap(*Arg),
 
+    /// Initialize an instance of `Args` and its underlying `allocator`.
     pub fn init(allocator: std.mem.Allocator) Self {
         return .{
             .allocator = allocator,
@@ -96,6 +159,7 @@ pub const Args = struct {
         };
     }
 
+    /// Add a single argument to `Args.args`
     pub fn add(self: *Self, name: []const u8, desc: []const u8, required: bool, value: ArgTypes) !void {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -106,6 +170,7 @@ pub const Args = struct {
         try self.args.put(name, arg);
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*bool`.
     pub fn boolean(self: *Self, name: []const u8, desc: []const u8, required: bool, value: bool) !*bool {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -117,6 +182,7 @@ pub const Args = struct {
         return &arg.value.Boolean;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*i32`.
     pub fn int32(self: *Self, name: []const u8, desc: []const u8, required: bool, value: i32) !*i32 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -128,6 +194,7 @@ pub const Args = struct {
         return &arg.value.Int32;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*i64`.
     pub fn int64(self: *Self, name: []const u8, desc: []const u8, required: bool, value: i64) !*i64 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -139,6 +206,7 @@ pub const Args = struct {
         return &arg.value.Int64;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*i128`.
     pub fn int128(self: *Self, name: []const u8, desc: []const u8, required: bool, value: i128) !*i128 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -150,6 +218,7 @@ pub const Args = struct {
         return &arg.value.Int128;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*u32`.
     pub fn uint32(self: *Self, name: []const u8, desc: []const u8, required: bool, value: u32) !*u32 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -161,6 +230,7 @@ pub const Args = struct {
         return &arg.value.UInt32;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*u64`.
     pub fn uint64(self: *Self, name: []const u8, desc: []const u8, required: bool, value: u64) !*u64 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -172,6 +242,7 @@ pub const Args = struct {
         return &arg.value.UInt64;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*u128`.
     pub fn uint128(self: *Self, name: []const u8, desc: []const u8, required: bool, value: u128) !*u128 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -183,6 +254,7 @@ pub const Args = struct {
         return &arg.value.UInt128;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*f32`.
     pub fn float32(self: *Self, name: []const u8, desc: []const u8, required: bool, value: f32) !*f32 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -194,6 +266,7 @@ pub const Args = struct {
         return &arg.value.Float32;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*f64`.
     pub fn float64(self: *Self, name: []const u8, desc: []const u8, required: bool, value: f64) !*f64 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -205,6 +278,7 @@ pub const Args = struct {
         return &arg.value.Float64;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*f128`.
     pub fn float128(self: *Self, name: []const u8, desc: []const u8, required: bool, value: f128) !*f128 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -216,6 +290,7 @@ pub const Args = struct {
         return &arg.value.Float128;
     }
 
+    /// Add a single argument to `Args.args`. Returns a binding pointer of type: `*[]const u8`.
     pub fn string(self: *Self, name: []const u8, desc: []const u8, required: bool, value: []const u8) !*[]const u8 {
         if (self.args.contains(name)) {
             return ArgDefinitionError.Duplicate;
@@ -227,11 +302,13 @@ pub const Args = struct {
         return &arg.value.String;
     }
 
+    /// Get the value of an argument by passing the argument `key` (a.k.a `Arg.name`).
     pub fn get_value(self: Self, key: []const u8) !ArgTypes {
         const arg = self.args.get(key) orelse return ArgParserError.ArgumentNotDefined;
         return arg.value;
     }
 
+    /// Parse a given slice into a boolean. The value is then passed to `Arg.value`.
     inline fn parse_boolean(self: *Self, src: []const u8, active_key: []const u8) !void {
         if (self.args.get(active_key)) |entry| {
             entry.value = ArgTypes{ .Boolean = parse_to_bool(src) catch |err| {
@@ -240,12 +317,14 @@ pub const Args = struct {
         }
     }
 
+    /// Pass the given slice directly to `Arg.value` as an `ArgsTypes{.String}`.
     inline fn parse_string(self: *Self, src: []const u8, active_key: []const u8) !void {
         if (self.args.get(active_key)) |entry| {
             entry.value = ArgTypes{ .String = src };
         }
     }
 
+    /// Parse a given slice into a numerical type. The value is then passed to `Arg.value`.
     inline fn parse_numeric(self: *Self, src: []const u8, active_key: []const u8) !void {
         if (self.args.get(active_key)) |entry| {
             switch (entry.value) {
@@ -299,6 +378,12 @@ pub const Args = struct {
         }
     }
 
+    /// Parse the arguments provided by:
+    /// - `std.process.ArgIterator`
+    /// - `optzig.MockArgIterator` this is for testing purpose only
+    /// The parser handles single and double dash arguments and slices without
+    /// dash(es) as values. If a supplied argument was defined the value passed
+    /// after will populate `Arg.value` that pertains to the supplied argument.
     pub fn parse(self: *Self, comptime ItType: type, argv: *ItType) !void {
         switch (ItType) {
             std.process.ArgIterator, MockArgIterator => {
@@ -378,6 +463,14 @@ pub const Args = struct {
         }
     }
 
+    /// Return a list of all the defined arguments with:
+    /// - Argument name
+    /// - Argument type
+    /// - Required status
+    /// - Argument description
+    /// The default behavior will have this function exit the process once its finished
+    /// executing. A callback function can be passed if a customized format or behavior
+    /// is desired.
     pub fn usage(self: *Self, callback: ?*const fn () void) !void {
         if (callback) |cb| {
             cb();
@@ -458,6 +551,7 @@ test "Optzig parse_to_bool" {
 }
 
 test "Optzig parse_to_bool error check" {
+    try testing.expectError(ArgParserError.BadBooleanInputValue, parse_to_bool("3"));
     try testing.expectError(ArgParserError.BadBooleanInputValue, parse_to_bool("z3R0"));
 }
 
