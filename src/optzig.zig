@@ -378,6 +378,22 @@ pub const Args = struct {
         }
     }
 
+    inline fn assign_value(self: *Self, active_key: []const u8, value: []const u8) !void {
+        const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
+
+        switch (entry.value) {
+            .Boolean => {
+                try parse_boolean(self, value, active_key);
+            },
+            .Int32, .Int64, .Int128, .UInt32, .UInt64, .UInt128, .Float32, .Float64, .Float128 => {
+                try parse_numeric(self, value, active_key);
+            },
+            .String => {
+                try parse_string(self, value, active_key);
+            },
+        }
+    }
+
     /// Parse the arguments provided by:
     /// - `std.process.ArgIterator`
     /// - `optzig.MockArgIterator` this is for testing purpose only
@@ -393,19 +409,28 @@ pub const Args = struct {
                 while (argv.next()) |in| {
                     if (std.mem.startsWith(u8, in, "--")) {
                         const tmp = std.mem.trimLeft(u8, in, "--");
-                        if (self.args.contains(tmp)) {
-                            // Boolean togglable flag only works with double dash
-                            const entry = self.args.get(tmp) orelse return ArgParserError.ErroneousInput;
-
-                            if (std.meta.activeTag(entry.value) == .Boolean) {
-                                entry.value.Boolean = !entry.value.Boolean;
+                        if (std.mem.indexOf(u8, tmp, "=")) |eq_pos| {
+                            const arg = tmp[0..eq_pos];
+                            const val = tmp[eq_pos + 1 .. tmp.len];
+                            try assign_value(self, arg, val);
+                            if (self.args.get(arg)) |entry| {
+                                if (entry.required) entry.*.supplied = true;
                             }
-
-                            active_key = tmp;
-
-                            if (entry.required) entry.*.supplied = true;
                         } else {
-                            return ArgParserError.ArgumentNotDefined;
+                            if (self.args.contains(tmp)) {
+                                // Boolean togglable flag only works with double dash
+                                const entry = self.args.get(tmp) orelse return ArgParserError.ErroneousInput;
+
+                                if (std.meta.activeTag(entry.value) == .Boolean) {
+                                    entry.value.Boolean = !entry.value.Boolean;
+                                }
+
+                                active_key = tmp;
+
+                                if (entry.required) entry.*.supplied = true;
+                            } else {
+                                return ArgParserError.ArgumentNotDefined;
+                            }
                         }
                     } else if (std.mem.startsWith(u8, in, "-")) {
                         const tmp = std.mem.trimLeft(u8, in, "-");
@@ -413,42 +438,38 @@ pub const Args = struct {
                         // Check if the input is a negative numerical value or a float value stating with .
                         const is_num_val = tmp.len > 0 and (std.ascii.isDigit(tmp[0]) or tmp[0] == '.');
 
-                        if (self.args.contains(tmp)) {
-                            active_key = tmp;
-                            const entry = self.args.get(tmp) orelse return ArgParserError.ErroneousInput;
-                            if (entry.required) entry.*.supplied = true;
-                        } else if (is_num_val and active_key.len > 0) {
-                            const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
-                            switch (entry.value) {
-                                .Int32, .Int64, .Int128, .Float32, .Float64, .Float128 => {
-                                    try parse_numeric(self, in, active_key);
-                                },
-                                else => return ArgParserError.ErroneousInput,
+                        if (std.mem.indexOf(u8, tmp, "=")) |eq_pos| {
+                            const arg = tmp[0..eq_pos];
+                            const val = tmp[eq_pos + 1 .. tmp.len];
+                            try assign_value(self, arg, val);
+                            if (self.args.get(arg)) |entry| {
+                                if (entry.required) entry.*.supplied = true;
                             }
-
-                            if (entry.required) entry.*.supplied = true;
                         } else {
-                            return ArgParserError.ArgumentNotDefined;
+                            if (self.args.contains(tmp)) {
+                                active_key = tmp;
+                                const entry = self.args.get(tmp) orelse return ArgParserError.ErroneousInput;
+                                if (entry.required) entry.*.supplied = true;
+                            } else if (is_num_val and active_key.len > 0) {
+                                const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
+                                switch (entry.value) {
+                                    .Int32, .Int64, .Int128, .Float32, .Float64, .Float128 => {
+                                        try parse_numeric(self, in, active_key);
+                                    },
+                                    else => return ArgParserError.ErroneousInput,
+                                }
+
+                                if (entry.required) entry.*.supplied = true;
+                            } else {
+                                return ArgParserError.ArgumentNotDefined;
+                            }
                         }
                     } else {
                         if (in.len == 0) {
                             // Handle empty string value
                             return ArgParserError.ErroneousInput;
-                        } else {
-                            const entry = self.args.get(active_key) orelse return ArgParserError.ErroneousInput;
-
-                            switch (entry.value) {
-                                .Boolean => {
-                                    try parse_boolean(self, in, active_key);
-                                },
-                                .Int32, .Int64, .Int128, .UInt32, .UInt64, .UInt128, .Float32, .Float64, .Float128 => {
-                                    try parse_numeric(self, in, active_key);
-                                },
-                                .String => {
-                                    try parse_string(self, in, active_key);
-                                },
-                            }
                         }
+                        try assign_value(self, active_key, in);
                     }
                 }
             },
@@ -720,7 +741,22 @@ test "Optzig.Args required argument passed" {
 
     try args.parse(MockArgIterator, &mock_it);
 
-    try testing.expectEqual("~/.config/app/conf.json", config.*);
+    try testing.expectEqualStrings("~/.config/app/conf.json", config.*);
     try testing.expectEqual(true, verbose.*);
+}
+
+test "Optzig.Args assigment style value acquisition" {
+    var arena = std.heap.ArenaAllocator.init(testing.allocator);
+    defer arena.deinit();
+
+    var args = Args.init(arena.allocator());
+
+    const config = try args.string("config", "Path to the configuration file.", false, "");
+
+    var mock_it = MockArgIterator.init(&[_][]const u8{ "test", "--config=~/.config/app/conf.json" });
+
+    try args.parse(MockArgIterator, &mock_it);
+
+    try testing.expectEqualStrings("~/.config/app/conf.json", config.*);
 }
 
