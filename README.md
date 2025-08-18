@@ -6,7 +6,6 @@
 
 - Define arguments with names, descriptions, and types
 - Parse command-line arguments and automatically assign values to defined arguments
-- Support for long arguments (e.g., `--verbose`)
 - Error handling for invalid input or argument definitions
 - Mimics the Go language's approach to command-line argument parsing
 
@@ -17,34 +16,26 @@ const std = @import("std");
 const opt = @import("optzig");
 
 pub fn main() !void {
-    var dba: if (BUILD_MODE == .Debug) std.heap.DebugAllocator(.{}) else void =
-        if (BUILD_MODE == .Debug) std.heap.DebugAllocator(.{}).init else {};
+    var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    defer arena.deinit();
 
-    var arena = std.heap.ArenaAllocator.init(switch (BUILD_MODE) {
-        .ReleaseFast, .ReleaseSmall, .ReleaseSafe => std.heap.smp_allocator,
-        .Debug => dba.allocator(),
-    });
-
-    defer arena.deinit()
-
-    var args = opt.Args.init(&arena);
+    var ag = opt.Args.init(arena.allocator());
 
     // Define arguments
-    try args.add("verbose", "Enable verbose output", opt.ArgTypes{ .Boolean = false });
-    try args.add("port", "Server port number", opt.ArgTypes{ .UInt16 = 8080 });
-    try args.add("name", "User name", opt.ArgTypes{ .String = undefined });
+    const port = try ag.int32("port", "binding port", false, 0);
+    const help = try ag.boolean("help", "Print this usage", false, false);
 
     // Parse command-line arguments
     var arg_inputs = try std.process.argsWithAllocator(arena.allocator());
-    try args.parse(&arg_inputs);
-
-    // Access parsed argument values
-    const verbose = args.items.get("verbose").?.value.Boolean;
-    const port = args.items.get("port").?.value.UInt16;
-    const name = args.items.get("name").?.value.String;
+    try ag.parse(std.process.ArgIterator, &arg_inputs);
 
     // Use parsed arguments
     // ...
+    std.log.info("Binding Port: {d}\n", .{port.*});
+
+    if (help.*) {
+        try ag.usage(null);
+    }
 }
 ```
 
