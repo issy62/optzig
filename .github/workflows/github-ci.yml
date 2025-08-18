@@ -68,7 +68,7 @@ jobs:
     - name: Run release build
       run: |
         zig build run -Doptimize=ReleaseFast -- --help
-        zig build run -Doptimize=ReleaseFast -- --port 32.0 --to "5555555555" --verbose
+        zig build run -Doptimize=ReleaseFast -- --port=32 --to "5555555555" --verbose
 
   docs:
     runs-on: ubuntu-latest
