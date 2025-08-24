@@ -122,9 +122,7 @@ pub const Arg = struct {
 
 /// Convert an accepted narrow set of string literals to boolean
 inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
-    // TODO: Get rid of this. we have a std.ascii.eqlIgnoreCase() I missed it!
-    var buffer: [5]u8 = undefined;
-    const sanitized_str = std.ascii.lowerString(&buffer, std.mem.trim(u8, str, &std.ascii.whitespace));
+    const sanitized_str = std.mem.trim(u8, str, &std.ascii.whitespace);
 
     if (sanitized_str.len == 1) {
         return switch (sanitized_str[0]) {
@@ -134,8 +132,8 @@ inline fn parse_to_bool(str: []const u8) ArgParserError!bool {
         };
     }
 
-    if (std.mem.eql(u8, sanitized_str, "true")) return true;
-    if (std.mem.eql(u8, sanitized_str, "false")) return false;
+    if (std.ascii.eqlIgnoreCase(sanitized_str, "true")) return true;
+    if (std.ascii.eqlIgnoreCase(sanitized_str, "false")) return false;
 
     return ArgParserError.BadBooleanInputValue;
 }
