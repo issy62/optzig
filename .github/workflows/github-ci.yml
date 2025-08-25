@@ -1,0 +1,99 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, develop]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.14.0
+
+    - name: Build
+      run: zig build --summary all
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-runners
+        path: |
+          .zig-cache
+          zig-out
+        retention-days: 1
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.14.0
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: test-runners
+
+    - name: Test
+      run: zig build test --summary all
+
+  production:
+    runs-on: ubuntu-latest
+    needs: [build, test]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.14.0
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: test-runners
+
+    - name: Run release build
+      run: |
+        zig build run -Doptimize=ReleaseFast -- --help
+        zig build run -Doptimize=ReleaseFast -- --port=32 --to "5555555555" --verbose
+
+  docs:
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    if: ${{ github.ref == 'refs/heads/master' || github.ref == 'refs/heads/develop' }}
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Zig
+      uses: goto-bus-stop/setup-zig@v2
+      with:
+        version: 0.14.0
+
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: test-runners
+
+    - name: Build docs
+      run: zig build docs
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: zig-out/docs
+
