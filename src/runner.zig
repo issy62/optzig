@@ -2,7 +2,9 @@ const std = @import("std");
 const opt = @import("optzig");
 
 pub fn main() !void {
-    const io = std.io.getStdOut().writer();
+    var out_buffer: [4096]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&out_buffer);
+    var stdout = &stdout_writer.interface;
 
     var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
     defer arena.deinit();
@@ -26,8 +28,9 @@ pub fn main() !void {
         try ag.usage(null);
     }
 
-    try io.print("Port Number: {d}\n", .{port.*});
-    try io.print("To Number: {s}\n", .{to.*});
-    try io.print("Vebose: {}\n", .{verb.*});
+    try stdout.print("Port Number: {d}\n", .{port.*});
+    try stdout.print("To Number: {s}\n", .{to.*});
+    try stdout.print("Vebose: {}\n", .{verb.*});
+    try stdout.flush();
 }
 
