@@ -495,15 +495,21 @@ pub const Args = struct {
         if (callback) |cb| {
             cb();
         } else {
-            const io = std.io.getStdOut().writer();
+            var out_buffer: [4096]u8 = undefined;
+            var stdout_writer = std.fs.File.stdout().writer(&out_buffer);
+            var stdout = &stdout_writer.interface;
+
             var it = self.args.valueIterator();
 
-            try io.writeAll("USAGE\n");
-            try io.writeAll("  Flags:\n");
+            try stdout.writeAll("USAGE\n");
+            try stdout.writeAll("  Flags:\n");
 
             while (it.next()) |item| {
-                try io.print("\t--{s} [{s}] - Required: {} - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.required, item.*.description });
+                try stdout.print("\t--{s} [{s}] - Required: {} - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.required, item.*.description });
             }
+
+            try stdout.flush();
+
             std.process.exit(0);
         }
     }
