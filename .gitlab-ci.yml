@@ -11,8 +11,7 @@ build-job:
     - zig build --summary all
   artifacts:
     name: test-runners
-    public: false
-    expire_in: 60 mins
+    expire_in: 25 mins
     paths:
       - .zig-cache
       - zig-out
