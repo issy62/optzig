@@ -1,36 +1,36 @@
 const std = @import("std");
 const opt = @import("optzig");
 
-pub fn main() !void {
-    var out_buffer: [4096]u8 = undefined;
-    var stdout_writer = std.fs.File.stdout().writer(&out_buffer);
-    var stdout = &stdout_writer.interface;
-
+pub fn main(init: std.process.Init) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
+    const allocator = arena.allocator();
     defer arena.deinit();
 
-    var arg_iputs = try std.process.argsWithAllocator(arena.allocator());
+    var out_buffer: [4096]u8 = undefined;
+    var stdout_writer = std.Io.File.stdout().writer(init.io, &out_buffer);
+    var stdout = &stdout_writer.interface;
 
-    var ag = opt.Args.init(arena.allocator());
+    var arg_iputs = try std.process.Args.Iterator.initAllocator(init.minimal.args, allocator);
+
+    var ag = opt.Args.init(allocator);
     const verb = try ag.boolean("verbose", "verbosity level", false, false);
     const port = try ag.int32("port", "binding port", false, 0);
     const to = try ag.string("to", "outbound phone number", true, "");
     const help = try ag.boolean("help", "Print this usage", false, false);
 
-    ag.parse(std.process.ArgIterator, &arg_iputs) catch |err| {
+    ag.parse(std.process.Args.Iterator, &arg_iputs) catch |err| {
         switch (err) {
-            opt.ArgParserError.RequiredArgument => try ag.usage(null),
+            opt.ArgParserError.RequiredArgument => try ag.usageWithExit(init.io, 0),
             else => return err,
         }
     };
 
     if (help.*) {
-        try ag.usage(null);
+        try ag.usageWithExit(init.io, 0);
     }
 
     try stdout.print("Port Number: {d}\n", .{port.*});
     try stdout.print("To Number: {s}\n", .{to.*});
-    try stdout.print("Vebose: {}\n", .{verb.*});
+    try stdout.print("Verbose: {}\n", .{verb.*});
     try stdout.flush();
 }
-

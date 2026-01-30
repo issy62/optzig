@@ -401,13 +401,13 @@ pub const Args = struct {
     /// after will populate `Arg.value` that pertains to the supplied argument.
     pub fn parse(self: *Self, comptime ItType: type, argv: *ItType) !void {
         switch (ItType) {
-            std.process.ArgIterator, MockArgIterator => {
+            std.process.Args.Iterator, MockArgIterator => {
                 _ = argv.skip(); // skip the  executable
                 var active_key: []const u8 = "";
 
                 while (argv.next()) |in| {
                     if (std.mem.startsWith(u8, in, "--")) {
-                        const tmp = std.mem.trimLeft(u8, in, "--");
+                        const tmp = std.mem.trimStart(u8, in, "--");
                         if (std.mem.indexOf(u8, tmp, "=")) |eq_pos| {
                             const arg = tmp[0..eq_pos];
                             const val = tmp[eq_pos + 1 .. tmp.len];
@@ -432,7 +432,7 @@ pub const Args = struct {
                             }
                         }
                     } else if (std.mem.startsWith(u8, in, "-")) {
-                        const tmp = std.mem.trimLeft(u8, in, "-");
+                        const tmp = std.mem.trimStart(u8, in, "-");
 
                         // Check if the input is a negative numerical value or a float value stating with .
                         const is_num_val = tmp.len > 0 and (std.ascii.isDigit(tmp[0]) or tmp[0] == '.');
@@ -488,30 +488,33 @@ pub const Args = struct {
     /// - Argument type
     /// - Required status
     /// - Argument description
-    /// The default behavior will have this function exit the process once its finished
-    /// executing. A callback function can be passed if a customized format or behavior
-    /// is desired.
-    pub fn usage(self: *Self, callback: ?*const fn () void) !void {
-        if (callback) |cb| {
-            cb();
-        } else {
-            var out_buffer: [4096]u8 = undefined;
-            var stdout_writer = std.fs.File.stdout().writer(&out_buffer);
-            var stdout = &stdout_writer.interface;
+    pub fn usage(self: *Self, io: std.Io) !void {
+        var out_buffer: [4096]u8 = undefined;
+        var stdout_writer = std.Io.File.stdout().writer(io, &out_buffer);
+        var stdout = &stdout_writer.interface;
 
-            var it = self.args.valueIterator();
+        var it = self.args.valueIterator();
 
-            try stdout.writeAll("USAGE\n");
-            try stdout.writeAll("  Flags:\n");
+        try stdout.writeAll("USAGE\n");
+        try stdout.writeAll("  Flags:\n");
 
-            while (it.next()) |item| {
-                try stdout.print("\t--{s} [{s}] - Required: {} - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.required, item.*.description });
-            }
-
-            try stdout.flush();
-
-            std.process.exit(0);
+        while (it.next()) |item| {
+            try stdout.print("\t--{s} [{s}] - Required: {} - {s}\n", .{ item.*.name, item.*.value.toString(), item.*.required, item.*.description });
         }
+
+        try stdout.flush();
+    }
+
+    /// Return a list of all the defined arguments with:
+    /// - Argument name
+    /// - Argument type
+    /// - Required status
+    /// - Argument description
+    /// The default this function calls `std.process.exit(status) thereby terminating
+    /// program execution.
+    pub fn usageWithExit(self: *Self, io: std.Io, status: u8) !noreturn {
+        try self.usage(io);
+        std.process.exit(status);
     }
 };
 
@@ -764,4 +767,3 @@ test "Optzig.Args assigment style value acquisition" {
 
     try testing.expectEqualStrings("~/.config/app/conf.json", config.*);
 }
-

@@ -1,8 +1,8 @@
 .{
     .name = .optzig,
-    .version = "0.6.0",
+    .version = "0.7.0",
     .fingerprint = 0x6b6002bb6f97b86a,
-    .minimum_zig_version = "0.15.1",
+    .minimum_zig_version = "0.16.0",
 
     .dependencies = .{},
 
@@ -16,4 +16,3 @@
         "CONTRIBUTING.md",
     },
 }
-

@@ -5,12 +5,6 @@ pub fn build(b: *std.Build) void {
 
     const optimize = b.standardOptimizeOption(.{});
 
-    const options = b.addOptions();
-
-    const use_llvm = b.option(bool, "use_llvm", "Allows you to swap between LLVM or the x86 backend.") orelse true;
-
-    options.addOption(bool, "use_llvm", use_llvm);
-
     const module = b.addModule("optzig", .{
         .root_source_file = b.path("src/optzig.zig"),
         .target = target,
@@ -20,16 +14,13 @@ pub fn build(b: *std.Build) void {
     const optizg_object = b.addObject(.{
         .name = "optzig",
         .root_module = module,
-        .use_llvm = use_llvm,
     });
 
     const tests = b.addTest(.{
         .root_module = module,
-        .use_llvm = use_llvm,
     });
 
     tests.root_module.addImport("optzig", module);
-    tests.root_module.addOptions("add_options", options);
 
     const exe = b.addExecutable(.{
         .name = "runner",
@@ -38,13 +29,11 @@ pub fn build(b: *std.Build) void {
             .target = target,
             .optimize = optimize,
         }),
-        .use_llvm = use_llvm,
     });
 
     b.installArtifact(exe);
 
     exe.root_module.addImport("optzig", module);
-    exe.root_module.addOptions("add_options", options);
 
     const doc = b.addInstallDirectory(.{
         .source_dir = optizg_object.getEmittedDocs(),
@@ -71,4 +60,3 @@ pub fn build(b: *std.Build) void {
     const doc_step = b.step("docs", "Generate docs to ziz-out/docs");
     doc_step.dependOn(&doc.step);
 }
-
