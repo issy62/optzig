@@ -7,7 +7,7 @@ Please read and follow our [Code of Conduct](CODE_OF_CONDUCT.md). Keep it simple
 ## Getting Started
 
 ### Prerequisites
-- Zig 0.14.0 or higher
+- Zig 0.16.0 or higher
 
 ### Development Setup
 ```bash
