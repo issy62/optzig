@@ -15,7 +15,7 @@
 const std = @import("std");
 const opt = @import("optzig");
 
-pub fn main() !void {
+pub fn main(init: std.process.Init) !void {
     var arena = std.heap.ArenaAllocator.init(std.heap.smp_allocator);
     defer arena.deinit();
 
@@ -26,7 +26,7 @@ pub fn main() !void {
     const help = try ag.boolean("help", "Print this usage", false, false);
 
     // Parse command-line arguments
-    var arg_inputs = try std.process.argsWithAllocator(arena.allocator());
+    var arg_inputs = try std.process.Args.Iterator.initAllocator(init.minimal.args, arena.allocator());
     try ag.parse(std.process.ArgIterator, &arg_inputs);
 
     // Use parsed arguments
@@ -34,7 +34,8 @@ pub fn main() !void {
     std.log.info("Binding Port: {d}\n", .{port.*});
 
     if (help.*) {
-        try ag.usage(null);
+        // try ag.usage(init.io);
+        try ag.usageWithExit(init.io, 0);
     }
 }
 ```
